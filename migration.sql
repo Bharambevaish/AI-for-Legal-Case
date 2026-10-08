@@ -115,8 +115,62 @@ CREATE POLICY "profiles_public_read" ON profiles FOR SELECT USING (true);
 DROP POLICY IF EXISTS "profiles_public_insert" ON profiles;
 CREATE POLICY "profiles_public_insert" ON profiles FOR INSERT WITH CHECK (true);
 
+-- Profiles UPDATE Policies (Split: Self-Update vs Admin-Update)
 DROP POLICY IF EXISTS "profiles_public_update" ON profiles;
-CREATE POLICY "profiles_public_update" ON profiles FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "profiles_update" ON profiles;
+DROP POLICY IF EXISTS "profiles_update_policy" ON profiles;
+DROP POLICY IF EXISTS "profiles_admin_update_policy" ON profiles;
+DROP POLICY IF EXISTS "profiles_self_update_policy" ON profiles;
+
+-- 1. Self-update policy: allows users to update their own profile row
+CREATE POLICY "profiles_self_update_policy" ON public.profiles
+    FOR UPDATE
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+
+-- 2. Admin update policy: allows Admins to update any user's profile
+CREATE POLICY "profiles_admin_update_policy" ON public.profiles
+    FOR UPDATE
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles p 
+            WHERE p.user_id = auth.uid() AND p.role = 'Admin'
+        )
+    );
+
+-- 3. Database Trigger: Hard-stops any non-admin from modifying the role column
+CREATE OR REPLACE FUNCTION public.protect_profile_role()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Only evaluate if role is actually being changed
+    IF NEW.role IS DISTINCT FROM OLD.role THEN
+        -- Allow internal Supabase service-role or postgres superuser
+        IF (current_user IN ('postgres', 'supabase_admin')) 
+           OR (COALESCE(auth.jwt() ->> 'role', '') = 'service_role') THEN
+            RETURN NEW;
+        END IF;
+
+        -- Allow if the requester is verified as an Admin in profiles
+        IF EXISTS (
+            SELECT 1 FROM public.profiles 
+            WHERE user_id = auth.uid() AND role = 'Admin'
+        ) THEN
+            RETURN NEW;
+        END IF;
+
+        -- Explicitly block any non-admin from updating the role column
+        RAISE EXCEPTION 'Access Denied: Only administrators are permitted to modify the role column.';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_protect_profile_role ON public.profiles;
+CREATE TRIGGER trg_protect_profile_role
+    BEFORE UPDATE ON public.profiles
+    FOR EACH ROW
+    EXECUTE FUNCTION public.protect_profile_role();
 
 -- Case Predictions Policies
 DROP POLICY IF EXISTS "case_predictions_read" ON case_predictions;
@@ -152,6 +206,51 @@ CREATE POLICY "statutory_bridge_insert" ON statutory_bridge FOR INSERT WITH CHEC
 DROP POLICY IF EXISTS "statutory_bridge_update" ON statutory_bridge;
 CREATE POLICY "statutory_bridge_update" ON statutory_bridge FOR UPDATE USING (true);
 
+-- 6. Role Requests — Stores user elevation requests to Lawyer, Judge, or Admin
+CREATE TABLE IF NOT EXISTS public.role_requests (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    user_email TEXT NOT NULL,
+    current_role TEXT NOT NULL DEFAULT 'Student' CHECK (current_role IN ('Student', 'Lawyer', 'Judge', 'Admin')),
+    requested_role TEXT NOT NULL CHECK (requested_role IN ('Lawyer', 'Judge', 'Admin')),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+    requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    reviewed_at TIMESTAMPTZ,
+    reviewed_by TEXT
+);
+
+ALTER TABLE public.role_requests ENABLE ROW LEVEL SECURITY;
+
+-- Role Requests Policies
+DROP POLICY IF EXISTS "role_requests_select_policy" ON public.role_requests;
+CREATE POLICY "role_requests_select_policy" ON public.role_requests
+    FOR SELECT
+    USING (
+        auth.uid() = user_id 
+        OR EXISTS (
+            SELECT 1 FROM profiles 
+            WHERE profiles.user_id = auth.uid() AND profiles.role = 'Admin'
+        )
+    );
+
+DROP POLICY IF EXISTS "role_requests_insert_policy" ON public.role_requests;
+CREATE POLICY "role_requests_insert_policy" ON public.role_requests
+    FOR INSERT
+    WITH CHECK (
+        auth.uid() = user_id 
+        AND status = 'pending'
+    );
+
+DROP POLICY IF EXISTS "role_requests_admin_update_policy" ON public.role_requests;
+CREATE POLICY "role_requests_admin_update_policy" ON public.role_requests
+    FOR UPDATE
+    USING (
+        EXISTS (
+            SELECT 1 FROM profiles 
+            WHERE profiles.user_id = auth.uid() AND profiles.role = 'Admin'
+        )
+    );
+
 -- =====================================================
 -- Performance Indexes
 -- =====================================================
@@ -162,3 +261,6 @@ CREATE INDEX IF NOT EXISTS idx_cases_vault_court ON cases_vault(court_level);
 CREATE INDEX IF NOT EXISTS idx_cases_vault_user_email ON cases_vault(user_email);
 CREATE INDEX IF NOT EXISTS idx_student_queries_user ON student_queries(user_email);
 CREATE INDEX IF NOT EXISTS idx_statutory_bridge_ipc ON statutory_bridge(ipc_section);
+CREATE INDEX IF NOT EXISTS idx_role_requests_user_id ON role_requests(user_id);
+CREATE INDEX IF NOT EXISTS idx_role_requests_status ON role_requests(status);
+CREATE INDEX IF NOT EXISTS idx_role_requests_requested_at ON role_requests(requested_at DESC);

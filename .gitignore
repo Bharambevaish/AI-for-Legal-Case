@@ -5,3 +5,7 @@ models/
 __pycache__/
 *.pyc
 ~$*
+eval_harness/original_data/
+*.csv
+.env
+design_ref/

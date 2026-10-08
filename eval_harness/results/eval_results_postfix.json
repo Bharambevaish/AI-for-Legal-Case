@@ -1,0 +1,263 @@
+{
+  "timestamp": "20260929_173232",
+  "benchmark_cohort": {
+    "disclaimer": "May include training-seen data (no split record available)",
+    "sample_size": 120,
+    "jurisdiction_metrics": {
+      "accuracy": 0.7667,
+      "macro_precision": 0.7182,
+      "macro_recall": 0.6694,
+      "macro_f1": 0.6847,
+      "confusion_matrix": [
+        [
+          53,
+          0,
+          7
+        ],
+        [
+          6,
+          33,
+          1
+        ],
+        [
+          14,
+          0,
+          6
+        ]
+      ],
+      "labels": [
+        "Civil Law",
+        "Criminal Law",
+        "Constitutional Law"
+      ],
+      "per_class": {
+        "Civil Law": {
+          "precision": 0.726,
+          "recall": 0.8833,
+          "f1": 0.797,
+          "support": 60
+        },
+        "Criminal Law": {
+          "precision": 1.0,
+          "recall": 0.825,
+          "f1": 0.9041,
+          "support": 40
+        },
+        "Constitutional Law": {
+          "precision": 0.4286,
+          "recall": 0.3,
+          "f1": 0.3529,
+          "support": 20
+        }
+      }
+    },
+    "outcome_metrics_all": {
+      "accuracy": 0.675,
+      "macro_precision": 0.6674,
+      "macro_recall": 0.6778,
+      "macro_f1": 0.6666,
+      "confusion_matrix": [
+        [
+          50,
+          25
+        ],
+        [
+          14,
+          31
+        ]
+      ],
+      "labels": [
+        "Allowed / Accepted",
+        "Dismissed / Rejected"
+      ],
+      "per_class": {
+        "Allowed / Accepted": {
+          "precision": 0.7812,
+          "recall": 0.6667,
+          "f1": 0.7194,
+          "support": 75
+        },
+        "Dismissed / Rejected": {
+          "precision": 0.5536,
+          "recall": 0.6889,
+          "f1": 0.6139,
+          "support": 45
+        }
+      }
+    },
+    "outcome_metrics_clean_binary": {
+      "accuracy": 0.6727,
+      "macro_precision": 0.6696,
+      "macro_recall": 0.6752,
+      "macro_f1": 0.6688,
+      "confusion_matrix": [
+        [
+          43,
+          22
+        ],
+        [
+          14,
+          31
+        ]
+      ],
+      "labels": [
+        "Allowed / Accepted",
+        "Dismissed / Rejected"
+      ],
+      "per_class": {
+        "Allowed / Accepted": {
+          "precision": 0.7544,
+          "recall": 0.6615,
+          "f1": 0.7049,
+          "support": 65
+        },
+        "Dismissed / Rejected": {
+          "precision": 0.5849,
+          "recall": 0.6889,
+          "f1": 0.6327,
+          "support": 45
+        }
+      }
+    }
+  },
+  "ood_cohort": {
+    "disclaimer": "True unseen data, high confidence",
+    "sample_size": 4,
+    "cases": [
+      {
+        "case_name": "Rajendra v. State of Maharashtra",
+        "filename": "10718_2011_7_1502_53219_Judgement_15-May-2024.pdf",
+        "court": "Supreme Court of India (May 2024)",
+        "true_jurisdiction": "Criminal Law",
+        "pred_jurisdiction": "Criminal Law",
+        "conf_jurisdiction": 99.4,
+        "jurisdiction_correct": true,
+        "true_outcome": "Dismissed / Rejected",
+        "pred_outcome": "Allowed / Accepted",
+        "conf_outcome": 93.1,
+        "outcome_correct": false
+      },
+      {
+        "case_name": "Ashok v. State of UP",
+        "filename": "47292_2018_5_1501_57671_Judgement_02-Dec-2024.pdf",
+        "court": "Supreme Court of India (Dec 2024)",
+        "true_jurisdiction": "Criminal Law",
+        "pred_jurisdiction": "Criminal Law",
+        "conf_jurisdiction": 99.6,
+        "jurisdiction_correct": true,
+        "true_outcome": "Allowed / Accepted",
+        "pred_outcome": "Allowed / Accepted",
+        "conf_outcome": 89.3,
+        "outcome_correct": true
+      },
+      {
+        "case_name": "Jilubhai Nanbhai Khachar v. State of Gujarat",
+        "filename": "Sh_Jilubhai_Nanbhai_Khachar_Etc_Etc_vs_State_Of_Gujarat_And_Anr_Etc_Etc_on_20_July_1994.PDF",
+        "court": "Supreme Court of India (July 1994)",
+        "true_jurisdiction": "Constitutional Law",
+        "pred_jurisdiction": "Constitutional Law",
+        "conf_jurisdiction": 98.1,
+        "jurisdiction_correct": true,
+        "true_outcome": "Dismissed / Rejected",
+        "pred_outcome": "Allowed / Accepted",
+        "conf_outcome": 60.0,
+        "outcome_correct": false
+      },
+      {
+        "case_name": "Shyamsundar Agarwal v. State of Maharashtra",
+        "filename": "ordjud.pdf",
+        "court": "Bombay High Court (Nov 2025)",
+        "true_jurisdiction": "Criminal Law",
+        "pred_jurisdiction": "Civil Law",
+        "conf_jurisdiction": 72.9,
+        "jurisdiction_correct": false,
+        "true_outcome": "Allowed / Accepted",
+        "pred_outcome": "Allowed / Accepted",
+        "conf_outcome": 89.3,
+        "outcome_correct": true
+      }
+    ],
+    "jurisdiction_metrics": {
+      "accuracy": 0.75,
+      "macro_precision": 0.6667,
+      "macro_recall": 0.5556,
+      "macro_f1": 0.6,
+      "confusion_matrix": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          2,
+          0
+        ],
+        [
+          0,
+          0,
+          1
+        ]
+      ],
+      "labels": [
+        "Civil Law",
+        "Criminal Law",
+        "Constitutional Law"
+      ],
+      "per_class": {
+        "Civil Law": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 0
+        },
+        "Criminal Law": {
+          "precision": 1.0,
+          "recall": 0.6667,
+          "f1": 0.8,
+          "support": 3
+        },
+        "Constitutional Law": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 1
+        }
+      }
+    },
+    "outcome_metrics": {
+      "accuracy": 0.5,
+      "macro_precision": 0.25,
+      "macro_recall": 0.5,
+      "macro_f1": 0.3333,
+      "confusion_matrix": [
+        [
+          2,
+          0
+        ],
+        [
+          2,
+          0
+        ]
+      ],
+      "labels": [
+        "Allowed / Accepted",
+        "Dismissed / Rejected"
+      ],
+      "per_class": {
+        "Allowed / Accepted": {
+          "precision": 0.5,
+          "recall": 1.0,
+          "f1": 0.6667,
+          "support": 2
+        },
+        "Dismissed / Rejected": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 2
+        }
+      }
+    }
+  }
+}
