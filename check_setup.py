@@ -52,7 +52,7 @@ try:
     import psutil
     free_gb = psutil.virtual_memory().available / 1e9
     report("PASS" if free_gb >= 2.0 else "WARN", "Free RAM", f"{free_gb:.1f} GB"
-           + ("" if free_gb >= 2.0 else " - close Chrome tabs / other apps before the demo (models need ~1.5 GB)"))
+           + ("" if free_gb >= 2.0 else " - too little free memory: close Chrome tabs, VS Code extensions and other apps (models + SHAP need ~2 GB)"))
 except ImportError:
     pass
 
@@ -87,9 +87,15 @@ except Exception:
     pass
 
 app = None
+out = crit = None
 try:
     t0 = time.time()
-    import app  # noqa: E402  (loads both InLegalBERT models through the app's own loader)
+    import logging
+    logging.disable(logging.WARNING)   # hide Streamlit's harmless "bare mode" warnings
+    try:
+        import app  # noqa: E402  (loads both InLegalBERT models through the app's own loader)
+    finally:
+        logging.disable(logging.NOTSET)
     if app.MODELS_READY:
         report("PASS", "Models load", f"{time.time() - t0:.1f} s")
     else:
@@ -108,15 +114,6 @@ if app is not None and app.MODELS_READY and os.path.isfile(sample_path):
         report("PASS", "Test prediction", f"{jur} ({jc:.1f}%), {out} ({oc:.1f}%) in {time.time() - t0:.1f} s")
     else:
         report("FAIL", "Test prediction", "inference error - see log above")
-
-    if "--shap" in sys.argv:
-        if app.SHAP_AVAILABLE:
-            t0 = time.time()
-            ex = app.explain_outcome(crit, out)
-            top = ", ".join(w for w, _ in ex["supporting"][:5])
-            report("PASS", "SHAP decision drivers", f"{time.time() - t0:.0f} s; top words: {top}")
-        else:
-            report("WARN", "SHAP decision drivers", "pip install shap")
 
 # 6. Database ---------------------------------------------------------------
 secrets_path = os.path.join(".streamlit", "secrets.toml")
@@ -148,6 +145,22 @@ else:
                 report("WARN", "ALLOW_OFFLINE_ADMIN_DEMO", "enabled - fine for a local demo, remove it afterwards")
     except Exception as e:
         report("FAIL", "Supabase check", f"{type(e).__name__}: {e}")
+
+# 7. SHAP (last, because it is the most memory-hungry step) ------------------
+if "--shap" in sys.argv and app is not None and app.MODELS_READY and out:
+    if not app.SHAP_AVAILABLE:
+        report("WARN", "SHAP decision drivers", "pip install shap")
+    else:
+        print("       Running SHAP decision drivers (30-90 s on CPU)...", flush=True)
+        t0 = time.time()
+        try:
+            ex = app.explain_outcome(crit, out)
+            top = ", ".join(w for w, _ in ex["supporting"][:5])
+            report("PASS", "SHAP decision drivers", f"{time.time() - t0:.0f} s; top words: {top}")
+        except MemoryError:
+            report("FAIL", "SHAP decision drivers", "out of memory - close other apps and run again")
+        except Exception as e:
+            report("FAIL", "SHAP decision drivers", f"{type(e).__name__}: {e}")
 
 print("=" * 70)
 fails, warns = results.count("FAIL"), results.count("WARN")

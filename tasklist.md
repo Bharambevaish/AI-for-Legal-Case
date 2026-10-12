@@ -1,6 +1,6 @@
 # Legal AI Hub — Task List
 
-Last updated: 13 Oct 2026, 01:20 IST · Branch: `fix/submission-critical` · [Pull request #1](https://github.com/Bharambevaish/AI-for-Legal-Case/pull/1)
+Last updated: 13 Oct 2026, 01:30 IST · Branch: `fix/submission-critical` · [Pull request #1](https://github.com/Bharambevaish/AI-for-Legal-Case/pull/1)
 
 **Summary:** 30 of 31 bugs fixed · 1 bug pending (C9, deferred by choice) · 7 demo-day tasks pending on your laptop · 12 of 12 tests passing.
 
@@ -60,13 +60,14 @@ Last updated: 13 Oct 2026, 01:20 IST · Branch: `fix/submission-critical` · [Pu
 - [x] Fixed: sidebar menu showed a blank pill instead of the page names (CSS hid the menu text on newer Streamlit)
 - [x] Fixed: `run_demo.bat` / `check_setup.py` now use your `.venv` folder
 
-## 5. Demo-day tasks — on your laptop (2 of 9 done)
+## 5. Demo-day tasks — on your laptop (3 of 10 done)
 
 - [x] `.streamlit/config.toml`: `fileWatcherType = "none"` added inside the single `[server]` section (your local copy had two `[server]` sections, which is invalid)
 - [ ] Get the code: `git fetch` then `git checkout fix/submission-critical` (or merge PR #1 and `git pull`)
 - [ ] In the venv: `pip install -r requirements.txt`
 - [x] Database: Supabase project "Ai Legal Hub" (`blxbbgvafpjtxbormpjk`) is healthy; all 6 tables and per-user security rules already exist; `admin1@legalai.in` is Admin and its email is now confirmed. **No need to run `schema.sql` before the demo.**
-- [ ] Run `python check_setup.py --shap` — every line PASS (this is the first test with the real models)
+- [x] Run `python check_setup.py` — real models load (21 s) and predict: Criminal Law 99.6%, Allowed 71.9% on the sample case
+- [ ] Free up RAM (only 0.1 GB free) and re-run `python check_setup.py --shap` — SHAP must reach PASS
 - [ ] Try each PDF in `Model Test pdfs/`; pick the main demo file and a backup
 - [ ] (Online database only) Create a pending role request from a Student account to approve live
 - [ ] Record a backup screen video of the full demo

@@ -691,7 +691,7 @@ def explain_outcome(text, target_label, max_tokens=256, max_evals=300):
         return probs.numpy()
 
     explainer = shap.Explainer(f, shap.maskers.Text(t_c), output_names=[OUTCOME_LABELS[i] for i in sorted(OUTCOME_LABELS)])
-    sv = explainer([short], max_evals=max_evals, batch_size=16, silent=True)
+    sv = explainer([short], max_evals=max_evals, batch_size=8, silent=True)   # small batches keep peak RAM low
     pieces = list(sv.data[0])
     values = [float(v) for v in sv.values[0][:, target]]
 
