@@ -1,8 +1,8 @@
 # Legal AI Hub — Task List
 
-Last updated: 13 Oct 2026, 00:10 IST · Branch: `fix/submission-critical` · [Pull request #1](https://github.com/Bharambevaish/AI-for-Legal-Case/pull/1)
+Last updated: 13 Oct 2026, 00:40 IST · Branch: `fix/submission-critical` · [Pull request #1](https://github.com/Bharambevaish/AI-for-Legal-Case/pull/1)
 
-**Summary:** 30 of 31 bugs fixed · 1 bug pending (C9, deferred by choice) · 8 demo-day tasks pending on your laptop · 12 of 12 tests passing.
+**Summary:** 30 of 31 bugs fixed · 1 bug pending (C9, deferred by choice) · 7 demo-day tasks pending on your laptop · 12 of 12 tests passing.
 
 `[x]` = done · `[ ]` = pending. Tick a box when a task is finished.
 
@@ -57,11 +57,12 @@ Last updated: 13 Oct 2026, 00:10 IST · Branch: `fix/submission-critical` · [Pu
 - [x] Eval harness reads PDFs from the correct folder
 - [x] Schema tested on PostgreSQL 16 (9 security checks pass)
 
-## 5. Demo-day tasks — on your laptop (0 of 8 done)
+## 5. Demo-day tasks — on your laptop (1 of 8 done)
 
+- [ ] Fix `.streamlit/config.toml`: it has two `[server]` sections (invalid TOML) — merge them into one
 - [ ] Get the code: `git fetch` then `git checkout fix/submission-critical` (or merge PR #1 and `git pull`)
 - [ ] In the venv: `pip install -r requirements.txt`
-- [ ] Database: restore Supabase and run `schema.sql` + set your Admin role — **or** add `ALLOW_OFFLINE_ADMIN_DEMO = true` to `.streamlit/secrets.toml`
+- [x] Database: Supabase project "Ai Legal Hub" (`blxbbgvafpjtxbormpjk`) is healthy; all 6 tables and per-user security rules already exist; `admin1@legalai.in` is Admin and its email is now confirmed. **No need to run `schema.sql` before the demo.**
 - [ ] Run `python check_setup.py --shap` — every line PASS (this is the first test with the real models)
 - [ ] Try each PDF in `Model Test pdfs/`; pick the main demo file and a backup
 - [ ] (Online database only) Create a pending role request from a Student account to approve live
@@ -69,6 +70,8 @@ Last updated: 13 Oct 2026, 00:10 IST · Branch: `fix/submission-critical` · [Pu
 - [ ] Start with `run_demo.bat` 10 minutes early; close other apps; charger plugged in
 
 ## 6. After the demo (deferred)
+
+- [ ] Optionally run `schema.sql` to switch the database rules from email-based to `user_id`-based (current rules are already safe)
 
 - [ ] **C9** Update paper, blackbook and poster numbers; regenerate figures from `eval_harness/run_eval.py`
 - [ ] Re-run `python eval_harness/run_eval.py` with the real models and record new numbers
