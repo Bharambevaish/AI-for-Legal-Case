@@ -225,7 +225,7 @@ def run_evaluation():
             continue
 
         with open(p, "rb") as fp:
-            text = extract_text_from_pdf(fp)
+            text, _ = extract_text_from_pdf(fp)
 
         _, _, crit_text = prepare_document(text)
 

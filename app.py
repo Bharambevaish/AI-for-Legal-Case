@@ -434,14 +434,21 @@ def load_models():
 t_b, m_b, t_c, m_c, model_load_error = load_models()
 MODELS_READY = all(x is not None for x in (t_b, m_b, t_c, m_c))
 
-def extract_text_from_pdf(pdf_file):
+MAX_PDF_PAGES = 150          # judgments are rarely longer; protects memory on huge uploads
+MAX_DISPLAY_CHARS = 60_000   # keep the Full Text tab responsive
+
+def extract_text_from_pdf(pdf_file, max_pages=MAX_PDF_PAGES):
+    """Text of the first `max_pages` pages. Returns (text, total_pages)."""
     if not PYMUPDF_AVAILABLE:
-        return pdf_file.read().decode('utf-8', errors='ignore')
+        return pdf_file.read().decode('utf-8', errors='ignore'), None
     try:
         doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
-        return "\n".join([page.get_text("text") for page in doc])
-    except Exception:
-        return ""
+        total = doc.page_count
+        text = "\n".join(doc[i].get_text("text") for i in range(min(total, max_pages)))
+        return text, total
+    except Exception as e:
+        logger.warning(f"PDF text extraction failed: {e}")
+        return "", None
 
 def clean_legal_text(text):
     # Drop everything before the first HEADNOTE / JUDGMENT / ORDER heading.
@@ -1309,8 +1316,9 @@ min-width: 100% !important;
                 # The analysis mode is part of the key so toggling it re-analyses the same file.
                 if st.session_state.predictions.get("hash") != f"{file_hash}:{mode}":
                     with st.spinner("Analyzing document..."):
+                        total_pages = None
                         if file.type == "application/pdf" or file.name.lower().endswith(".pdf"):
-                            text = extract_text_from_pdf(io.BytesIO(raw_bytes))
+                            text, total_pages = extract_text_from_pdf(io.BytesIO(raw_bytes))
                         else:
                             text = raw_bytes.decode('utf-8', errors='ignore')
                         clean, struct_d, crit = prepare_document(text)
@@ -1342,6 +1350,8 @@ min-width: 100% !important;
                             "file": file.name, "text": clean, "struct": struct_d, "crit": crit,
                             "statutes": find_statute_mappings(clean),
                             "is_likely_legal": is_likely_legal,
+                            "total_pages": total_pages,
+                            "no_text": not text.strip(),
                             "shap": None,
                         }
 
@@ -1361,6 +1371,11 @@ min-width: 100% !important;
                             except Exception as log_err:
                                 logger.warning(f"Could not log prediction: {log_err}")
 
+                p_now = st.session_state.predictions
+                if p_now.get("no_text"):
+                    st.error("No text could be read from this PDF. It is probably a scanned image; upload a text-based judgment PDF instead.")
+                elif (p_now.get("total_pages") or 0) > MAX_PDF_PAGES:
+                    st.info(f"Long document: {p_now['total_pages']} pages. Only the first {MAX_PDF_PAGES} pages were analysed.")
                 if not st.session_state.predictions.get("is_likely_legal", True):
                     st.warning("⚠️ Document Notice: This document does not appear to be a court judgment or legal petition (no judicial sections or statutory citations were recognized). Predictions may be unreliable.")
 
@@ -1479,6 +1494,8 @@ min-width: 100% !important;
         tab_f, tab_a, tab_j, tab_s, tab_full = st.tabs(["Facts", "Arguments", "Judgment", "IPC → BNS", "Full Text"])
 
         def _section_card(content, empty_msg):
+            if content and len(content) > MAX_DISPLAY_CHARS:
+                content = content[:MAX_DISPLAY_CHARS] + " …"
             body = html.escape(content) if content else f"<em>{empty_msg}</em>"
             st.markdown(f"<div class='pro-card' style='font-size: 0.9rem; line-height: 1.7; color: #334155; white-space: pre-wrap;'>{body}</div>", unsafe_allow_html=True)
 
@@ -1497,7 +1514,9 @@ min-width: 100% !important;
             else:
                 st.caption("No mapped IPC sections found in this document.")
         with tab_full:
-            st.text_area("Full processed text (IPC citations annotated with BNS)", value=translate_laws_to_bns(p['text']), height=350, disabled=True)
+            st.text_area("Full processed text (IPC citations annotated with BNS)", value=translate_laws_to_bns(p['text'][:MAX_DISPLAY_CHARS]), height=350, disabled=True)
+            if len(p['text']) > MAX_DISPLAY_CHARS:
+                st.caption(f"Showing the first {MAX_DISPLAY_CHARS:,} of {len(p['text']):,} characters.")
 
 
 def render_decision_drivers(p):

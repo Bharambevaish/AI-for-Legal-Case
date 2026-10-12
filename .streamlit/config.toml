@@ -11,3 +11,6 @@ headless = true
 
 # Do not watch files for changes: avoids reloads (and slow torch scans) during the demo
 fileWatcherType = "none"
+
+# Court judgments are a few MB at most; reject huge uploads with a clear message
+maxUploadSize = 50

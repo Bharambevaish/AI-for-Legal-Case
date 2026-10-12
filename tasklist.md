@@ -1,6 +1,6 @@
 # Legal AI Hub — Task List
 
-Last updated: 13 Oct 2026, 01:30 IST · Branch: `fix/submission-critical` · [Pull request #1](https://github.com/Bharambevaish/AI-for-Legal-Case/pull/1)
+Last updated: 13 Oct 2026, 01:40 IST · Branch: `fix/submission-critical` · [Pull request #1](https://github.com/Bharambevaish/AI-for-Legal-Case/pull/1)
 
 **Summary:** 30 of 31 bugs fixed · 1 bug pending (C9, deferred by choice) · 7 demo-day tasks pending on your laptop · 12 of 12 tests passing.
 
@@ -59,6 +59,8 @@ Last updated: 13 Oct 2026, 01:30 IST · Branch: `fix/submission-critical` · [Pu
 - [x] Fixed after your first real run (13 Oct, 01:10): models failed to load because Module_C's `config.json` says 3 labels but its weights have 2 (app now reads the true count from the weights)
 - [x] Fixed: sidebar menu showed a blank pill instead of the page names (CSS hid the menu text on newer Streamlit)
 - [x] Fixed: `run_demo.bat` / `check_setup.py` now use your `.venv` folder
+- [x] Large/scanned PDFs: only the first 150 pages are read, upload limit 50 MB, clear message for scanned (image-only) PDFs
+- [x] Note: `Model Test pdfs/Supreme court decision.pdf` is a 696-page 1890 US law-report book, not an Indian judgment — don't use it in the demo
 
 ## 5. Demo-day tasks — on your laptop (3 of 10 done)
 
