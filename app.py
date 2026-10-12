@@ -587,6 +587,43 @@ def predict(text, t, m, label_map, task="jurisdiction"):
         logger.error(f"Inference error in task '{task}': {e}", exc_info=True)
         return None, None
 
+def predict_windows(text, t, m, label_map, task="jurisdiction", window=512, stride=128,
+                    max_windows=8, return_windows=False):
+    """Full-document variant of predict(): average the prediction over overlapping windows.
+
+    predict() only sees the first 512 tokens of the facts + arguments, so most of a long
+    judgment is ignored. Here the fast tokenizer splits the text into `window`-token chunks
+    that overlap by `stride` tokens (so no passage is only ever seen cut in half), the model
+    scores all chunks in one batch, and the per-window probabilities are averaged.
+
+    At most `max_windows` windows (the first N) are scored to keep CPU time bounded.
+    Returns (label, confidence %) exactly like predict(), or (label, confidence %, n_windows)
+    when return_windows=True. Falls back to predict() (heuristic path) if models are missing,
+    and returns (None, None[, 0]) on inference errors.
+    """
+    if t is None or m is None:
+        label, conf = predict(text, t, m, label_map, task=task)
+        return (label, conf, 0) if return_windows else (label, conf)
+
+    try:
+        enc = t(text, truncation=True, max_length=window, stride=stride,
+                return_overflowing_tokens=True, padding=True, return_tensors="pt")
+        # Tokenizer bookkeeping keys are not model inputs.
+        enc.pop("overflow_to_sample_mapping", None)
+        enc.pop("offset_mapping", None)
+        inputs = {k: v[:max_windows] for k, v in enc.items()}
+        n = int(inputs["input_ids"].shape[0])
+        with torch.no_grad():
+            logits = m(**inputs).logits
+        probs, idx = _mapped_probs(logits, label_map)
+        mean = probs.mean(dim=0)          # still sums to 1 over the mapped labels
+        best = int(torch.argmax(mean).item())
+        label, conf = label_map[idx[best]], mean[best].item() * 100
+        return (label, conf, n) if return_windows else (label, conf)
+    except Exception as e:
+        logger.error(f"Windowed inference error in task '{task}': {e}", exc_info=True)
+        return (None, None, 0) if return_windows else (None, None)
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  EXPLAINABLE AI (SHAP) — "AI Decision Drivers"
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1209,6 +1246,9 @@ min-width: 100% !important;
             court_level = st.selectbox("Court Level", ["Supreme Court of India", "High Court", "District Court"])
         with f2:
             statutory_tags = st.text_input("Statutory Tags (saved with the case)", placeholder="e.g., Section 302")
+        # Opt-in: the reported benchmark numbers use the first-512-token path, so that stays the default.
+        full_doc = st.checkbox("Analyse full document (sliding window, slower)", value=False, key="full_doc_mode")
+    mode = "full" if full_doc else "first512"
 
     st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
 
@@ -1235,7 +1275,8 @@ min-width: 100% !important;
                 file_hash = hashlib.sha256(raw_bytes).hexdigest()
                 # Streamlit re-runs the whole script on every click; only analyse (and log
                 # to case_predictions) when a NEW file is uploaded, not on every rerun.
-                if st.session_state.predictions.get("hash") != file_hash:
+                # The analysis mode is part of the key so toggling it re-analyses the same file.
+                if st.session_state.predictions.get("hash") != f"{file_hash}:{mode}":
                     with st.spinner("Analyzing document..."):
                         if file.type == "application/pdf" or file.name.lower().endswith(".pdf"):
                             text = extract_text_from_pdf(io.BytesIO(raw_bytes))
@@ -1250,11 +1291,20 @@ min-width: 100% !important;
                         keyword_hits = [kw for kw in legal_keywords if re.search(r'\b' + re.escape(kw) + r'\b', clean_lower)]
                         is_likely_legal = (len(keyword_hits) >= 2) and (has_structured_sections or len(keyword_hits) >= 3)
 
-                        cat, cat_c = predict(crit, t_b, m_b, JURISDICTION_LABELS, task="jurisdiction")
-                        outc, outc_c = predict(crit, t_c, m_c, OUTCOME_LABELS, task="outcome")
+                        if mode == "full":
+                            cat, cat_c, n_win = predict_windows(crit, t_b, m_b, JURISDICTION_LABELS,
+                                                                task="jurisdiction", return_windows=True)
+                            outc, outc_c, n_win_c = predict_windows(crit, t_c, m_c, OUTCOME_LABELS,
+                                                                    task="outcome", return_windows=True)
+                            n_win = max(n_win, n_win_c)
+                        else:
+                            cat, cat_c = predict(crit, t_b, m_b, JURISDICTION_LABELS, task="jurisdiction")
+                            outc, outc_c = predict(crit, t_c, m_c, OUTCOME_LABELS, task="outcome")
+                            n_win = 1
 
                         st.session_state.predictions = {
-                            "hash": file_hash,
+                            "hash": f"{file_hash}:{mode}",
+                            "mode": mode, "windows": n_win,
                             "category": cat, "cat_conf": cat_c,
                             "outcome": outc, "out_conf": outc_c,
                             "source": "model" if MODELS_READY else "heuristic",
@@ -1264,7 +1314,10 @@ min-width: 100% !important;
                             "shap": None,
                         }
 
-                        if supabase and cat is not None and outc is not None:
+                        # Log each uploaded file once, even if it is re-analysed in another mode.
+                        logged = st.session_state.setdefault("logged_hashes", set())
+                        if supabase and cat is not None and outc is not None and file_hash not in logged:
+                            logged.add(file_hash)
                             try:
                                 supabase.table("case_predictions").insert({
                                     "user_email": st.session_state.user_email,
@@ -1327,6 +1380,12 @@ min-width: 100% !important;
                         </div>
                     """, unsafe_allow_html=True)
                     st.caption("Decision-support estimate from a model with ~68% measured outcome accuracy — not legal advice.")
+                    if p.get('source') == "model":
+                        if p.get('mode') == "full":
+                            n_win = p.get('windows', 0)
+                            st.caption(f"Analysed: {n_win} overlapping window{'s' if n_win != 1 else ''} of facts & arguments (full-document mode).")
+                        else:
+                            st.caption("Analysed: first 512 tokens of facts & arguments.")
                 else:
                     st.markdown(f"""
                         <div>

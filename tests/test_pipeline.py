@@ -105,3 +105,28 @@ def test_shap_explanation_structure():
     assert ex["target"] == "Allowed / Accepted"
     assert ex["words"]
     assert all(isinstance(v, float) for _, v in ex["supporting"] + ex["opposing"])
+
+
+# ── Full-document sliding-window inference (bug M7) ──────────────────────
+
+def test_window_predict_falls_back_to_heuristic_without_models():
+    label, conf = app.predict_windows("The accused was arrested by police under IPC.", None, None,
+                                      app.JURISDICTION_LABELS, task="jurisdiction")
+    assert label == "Criminal Law"
+    assert conf is None
+
+
+@needs_models
+def test_window_predict_covers_long_documents():
+    long_text = ("The appellant was convicted by the trial court under section 302 and the "
+                 "High Court affirmed the conviction on the testimony of two witnesses. ") * 125  # ~3000 words
+    enc = app.t_c(long_text, truncation=True, max_length=512, stride=128,
+                  return_overflowing_tokens=True)
+    assert len(enc["input_ids"]) > 1
+    label, conf, n = app.predict_windows(long_text, app.t_c, app.m_c, app.OUTCOME_LABELS,
+                                         task="outcome", return_windows=True)
+    assert n > 1
+    assert label in app.OUTCOME_LABELS.values()
+    assert 50.0 <= conf <= 100.0
+    # The public signature still mirrors predict(): (label, confidence %).
+    assert app.predict_windows(long_text, app.t_c, app.m_c, app.OUTCOME_LABELS, task="outcome") == (label, conf)
