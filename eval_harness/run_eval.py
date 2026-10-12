@@ -4,7 +4,7 @@ Evaluation Harness for Legal Case Outcome Prediction (Realistic LJP)
 Runs model evaluation across two cohorts:
 1. Benchmark Cohort (120 stratified rows from labeled_case_categories.csv)
    * Note: May include training-seen data (no split record available).
-2. Out-of-Distribution (OOD) Cohort (4 real Indian court judgments from Documents/Model Test pdfs/)
+2. Out-of-Distribution (OOD) Cohort (4 real Indian court judgments from Model Test pdfs/)
    * Note: True unseen data, high confidence.
 
 Imports preprocessing and prediction logic directly from app.py.
@@ -38,9 +38,7 @@ from app import (
     t_c,
     m_c,
     model_load_error,
-    translate_laws_to_bns,
-    clean_legal_text,
-    structure_aware_chunking,
+    prepare_document,
     predict,
     extract_text_from_pdf
 )
@@ -134,8 +132,8 @@ def run_evaluation():
         raw_text = str(row["cleaned_text"])
         
         # Pipeline matching app.py
-        bns_text = translate_laws_to_bns(raw_text)
-        _, crit_text = structure_aware_chunking(bns_text)
+        # Exactly the app's preprocessing path (clean -> sections -> model input)
+        _, _, crit_text = prepare_document(raw_text)
 
         p_jur, c_jur = predict(crit_text, t_b, m_b, jurisdiction_label_map, task="jurisdiction")
         p_out, c_out = predict(crit_text, t_c, m_c, outcome_label_map, task="outcome")
@@ -182,7 +180,7 @@ def run_evaluation():
     ood_cases = [
         {
             "filename": "10718_2011_7_1502_53219_Judgement_15-May-2024.pdf",
-            "path": os.path.join("Documents", "Model Test pdfs", "10718_2011_7_1502_53219_Judgement_15-May-2024.pdf"),
+            "path": os.path.join("Model Test pdfs", "10718_2011_7_1502_53219_Judgement_15-May-2024.pdf"),
             "court": "Supreme Court of India (May 2024)",
             "case_name": "Rajendra v. State of Maharashtra",
             "true_jurisdiction": "Criminal Law",
@@ -190,7 +188,7 @@ def run_evaluation():
         },
         {
             "filename": "47292_2018_5_1501_57671_Judgement_02-Dec-2024.pdf",
-            "path": os.path.join("Documents", "Model Test pdfs", "47292_2018_5_1501_57671_Judgement_02-Dec-2024.pdf"),
+            "path": os.path.join("Model Test pdfs", "47292_2018_5_1501_57671_Judgement_02-Dec-2024.pdf"),
             "court": "Supreme Court of India (Dec 2024)",
             "case_name": "Ashok v. State of UP",
             "true_jurisdiction": "Criminal Law",
@@ -198,7 +196,7 @@ def run_evaluation():
         },
         {
             "filename": "Sh_Jilubhai_Nanbhai_Khachar_Etc_Etc_vs_State_Of_Gujarat_And_Anr_Etc_Etc_on_20_July_1994.PDF",
-            "path": os.path.join("Documents", "Model Test pdfs", "Sh_Jilubhai_Nanbhai_Khachar_Etc_Etc_vs_State_Of_Gujarat_And_Anr_Etc_Etc_on_20_July_1994.PDF"),
+            "path": os.path.join("Model Test pdfs", "Sh_Jilubhai_Nanbhai_Khachar_Etc_Etc_vs_State_Of_Gujarat_And_Anr_Etc_Etc_on_20_July_1994.PDF"),
             "court": "Supreme Court of India (July 1994)",
             "case_name": "Jilubhai Nanbhai Khachar v. State of Gujarat",
             "true_jurisdiction": "Constitutional Law",
@@ -206,7 +204,7 @@ def run_evaluation():
         },
         {
             "filename": "ordjud.pdf",
-            "path": os.path.join("Documents", "Model Test pdfs", "ordjud.pdf"),
+            "path": os.path.join("Model Test pdfs", "ordjud.pdf"),
             "court": "Bombay High Court (Nov 2025)",
             "case_name": "Shyamsundar Agarwal v. State of Maharashtra",
             "true_jurisdiction": "Criminal Law",
@@ -229,9 +227,7 @@ def run_evaluation():
         with open(p, "rb") as fp:
             text = extract_text_from_pdf(fp)
 
-        clean = clean_legal_text(text)
-        bns_text = translate_laws_to_bns(clean)
-        _, crit_text = structure_aware_chunking(bns_text)
+        _, _, crit_text = prepare_document(text)
 
         p_jur, c_jur = predict(crit_text, t_b, m_b, jurisdiction_label_map, task="jurisdiction")
         p_out, c_out = predict(crit_text, t_c, m_c, outcome_label_map, task="outcome")

@@ -1,32 +1,34 @@
-# Core Framework
-streamlit>=1.32.0
+# Install with `pip install -r requirements.txt` inside the venv; for CPU-only torch on Windows the default PyPI wheel is fine.
 
-# Deep Learning & NLP
-torch>=2.2.0
-transformers>=4.38.0
-scikit-learn>=1.4.0
+# Web UI
+streamlit>=1.40,<2
 
-# Explainable AI (XAI)
-shap>=0.45.0
+# Models (Module B / Module C classifiers)
+torch>=2.2,<3
+transformers>=4.40,<6
 
-# PDF Processing & Text Extraction
-PyMuPDF>=1.23.21
+# Explainability ("AI Decision Drivers")
+shap>=0.45,<1
 
-# NLP Pipeline
-spacy>=3.7.0
+# PDF text extraction (imported as `pymupdf` / `fitz`)
+pymupdf>=1.24,<2
 
-# Database
-supabase>=2.0.0
+# Database (Supabase client; httpx is used directly for connection checks)
+supabase>=2.0,<3
+httpx>=0.27,<1
 
-# Data Handling & Mathematics
-pandas>=2.2.0
-numpy>=1.26.0
+# Data handling
+pandas>=2.2,<4
+numpy>=1.26,<3
 
-# Visualization
-matplotlib>=3.8.0
-seaborn>=0.13.0
-plotly>=5.19.0
+# Evaluation harness metrics (eval_harness/)
+scikit-learn>=1.4,<2
 
-# Model Optimization
-onnx>=1.15.0
-onnxruntime>=1.17.0
+# Optional: free-RAM check in check_setup.py
+psutil>=5.9,<8
+
+# check_setup.py reads secrets.toml; tomllib is built in from Python 3.11
+tomli>=2.0,<3; python_version < "3.11"
+
+# Testing
+pytest>=8.0,<10

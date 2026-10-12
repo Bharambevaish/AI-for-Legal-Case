@@ -9,3 +9,4 @@ eval_harness/original_data/
 *.csv
 .env
 design_ref/
+.pytest_cache/

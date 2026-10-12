@@ -57,9 +57,9 @@ Upgrade pip and install the project requirements:
 
 ```bash
 pip install --upgrade pip
-pip install streamlit torch transformers supabase pymupdf scikit-learn pandas numpy
+pip install -r requirements.txt
 ```
-*(Or install via `pip install -r requirements.txt` if available)*.
+*SHAP (for the "AI Decision Drivers" panel) is included in `requirements.txt`.*
 
 ---
 
@@ -75,10 +75,9 @@ You can either **use the existing Supabase project** (Option A) or **create a ne
 1. Go to [https://supabase.com](https://supabase.com) and create a free account.
 2. Click **New Project**, choose a name (e.g. `legal-ai-hub`), set a database password, and choose your nearest region.
 3. Once the project is provisioned, open **SQL Editor** in the left sidebar.
-4. Open the file `migration.sql` from this repository, copy its entire contents, paste it into the SQL Editor, and click **Run**.
-   - *This creates: `case_predictions`, `cases_vault`, `student_queries`, and `statutory_bridge`.*
-5. Open the file `role_system_setup.sql`, copy its entire contents, paste it into the SQL Editor, and click **Run**.
-   - *This creates: `public.profiles`, `public.role_requests`, row-level security (RLS) policies, and auto-profile triggers.*
+4. Open the file `schema.sql` from this repository, copy its entire contents, paste it into the SQL Editor, and click **Run**.
+   - *This creates all tables (`profiles`, `case_predictions`, `cases_vault`, `student_queries`, `statutory_bridge`, `role_requests`), row-level security policies, and the new-user trigger.*
+   - *It is safe to run on an existing database: it never drops tables, and it replaces the old open policies with per-user ones. (`migration.sql` and `role_system_setup.sql` are replaced by this file.)*
 
 ---
 
@@ -114,7 +113,7 @@ SUPABASE_KEY = "your-anon-public-key"
    SET role = 'Admin'
    WHERE email = 'admin@legalai.in';
    ```
-5. Return to the app, select the **Admin** tab in Chamber Jurisdiction, enter the credentials, and click **Sign In →**.
+5. Return to the app, enter the credentials, and click **Sign In →**. Your role is read from the database, so there is no role picker when the database is online.
 
 ---
 
@@ -136,5 +135,9 @@ The browser will open automatically at `http://localhost:8501`.
    Ensure `PyMuPDF` is installed: `pip install pymupdf`.
 2. **Torch / CUDA warning**:
    The app runs seamlessly on CPU. If running with GPU, install PyTorch with CUDA support from [pytorch.org](https://pytorch.org).
-3. **Database Offline Banner**:
+3. **Offline demo mode**:
+   If Supabase is unreachable the app opens in a local demo mode (Student / Lawyer / Judge; nothing is saved). Admin needs the database, unless you add `ALLOW_OFFLINE_ADMIN_DEMO = true` to `.streamlit/secrets.toml` for a local demo.
+4. **Run the tests**:
+   `python -m pytest tests -q` (model tests are skipped if `./models` is missing).
+5. **Database Offline Banner**:
    If the app shows *"Database Offline"*, verify that `.streamlit/secrets.toml` exists and that the `SUPABASE_URL` and `SUPABASE_KEY` values are exact.
