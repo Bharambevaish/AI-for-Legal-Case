@@ -1,6 +1,6 @@
 # Legal AI Hub — Task List
 
-Last updated: 13 Oct 2026, 00:40 IST · Branch: `fix/submission-critical` · [Pull request #1](https://github.com/Bharambevaish/AI-for-Legal-Case/pull/1)
+Last updated: 13 Oct 2026, 01:20 IST · Branch: `fix/submission-critical` · [Pull request #1](https://github.com/Bharambevaish/AI-for-Legal-Case/pull/1)
 
 **Summary:** 30 of 31 bugs fixed · 1 bug pending (C9, deferred by choice) · 7 demo-day tasks pending on your laptop · 12 of 12 tests passing.
 
@@ -56,6 +56,9 @@ Last updated: 13 Oct 2026, 00:40 IST · Branch: `fix/submission-critical` · [Pu
 - [x] Research Vault search
 - [x] Eval harness reads PDFs from the correct folder
 - [x] Schema tested on PostgreSQL 16 (9 security checks pass)
+- [x] Fixed after your first real run (13 Oct, 01:10): models failed to load because Module_C's `config.json` says 3 labels but its weights have 2 (app now reads the true count from the weights)
+- [x] Fixed: sidebar menu showed a blank pill instead of the page names (CSS hid the menu text on newer Streamlit)
+- [x] Fixed: `run_demo.bat` / `check_setup.py` now use your `.venv` folder
 
 ## 5. Demo-day tasks — on your laptop (2 of 9 done)
 
