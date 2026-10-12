@@ -8,3 +8,6 @@ font="sans serif"
 
 [server]
 headless = true
+
+# Do not watch files for changes: avoids reloads (and slow torch scans) during the demo
+fileWatcherType = "none"

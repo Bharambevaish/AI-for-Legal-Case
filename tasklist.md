@@ -57,9 +57,9 @@ Last updated: 13 Oct 2026, 00:40 IST · Branch: `fix/submission-critical` · [Pu
 - [x] Eval harness reads PDFs from the correct folder
 - [x] Schema tested on PostgreSQL 16 (9 security checks pass)
 
-## 5. Demo-day tasks — on your laptop (1 of 8 done)
+## 5. Demo-day tasks — on your laptop (2 of 9 done)
 
-- [ ] Fix `.streamlit/config.toml`: it has two `[server]` sections (invalid TOML) — merge them into one
+- [x] `.streamlit/config.toml`: `fileWatcherType = "none"` added inside the single `[server]` section (your local copy had two `[server]` sections, which is invalid)
 - [ ] Get the code: `git fetch` then `git checkout fix/submission-critical` (or merge PR #1 and `git pull`)
 - [ ] In the venv: `pip install -r requirements.txt`
 - [x] Database: Supabase project "Ai Legal Hub" (`blxbbgvafpjtxbormpjk`) is healthy; all 6 tables and per-user security rules already exist; `admin1@legalai.in` is Admin and its email is now confirmed. **No need to run `schema.sql` before the demo.**
