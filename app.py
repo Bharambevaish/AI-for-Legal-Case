@@ -1202,13 +1202,13 @@ min-width: 100% !important;
 
     with st.container(border=True):
         st.markdown('<span id="predictor-filters-card" style="display:none;"></span>', unsafe_allow_html=True)
-        f1, f2, f3 = st.columns(3)
+        # The jurisdiction (Civil / Criminal / Constitutional) is predicted by Module B,
+        # so there is no manual "Domain" picker; these two fields are saved with the case.
+        f1, f2 = st.columns(2)
         with f1:
-            case_category = st.selectbox("Domain", ["Criminal Law", "Civil Law", "Constitutional Law"])
-        with f2:
             court_level = st.selectbox("Court Level", ["Supreme Court of India", "High Court", "District Court"])
-        with f3:
-            statutory_tags = st.text_input("Statutory Tags", placeholder="e.g., Section 302")
+        with f2:
+            statutory_tags = st.text_input("Statutory Tags (saved with the case)", placeholder="e.g., Section 302")
 
     st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
 
@@ -1355,6 +1355,7 @@ min-width: 100% !important;
                                 "predicted_jurisdiction": p['category'],
                                 "ratio_decidendi": p['struct'].get('JUDGMENT', '')[:500],
                                 "relevant_sections_ipc": ", ".join(k for k, _ in p.get('statutes', [])),
+                                "key_issues": statutory_tags.strip() or None,
                                 "relevant_sections_bns": ", ".join(v for _, v in p.get('statutes', [])),
                                 "user_email": st.session_state.user_email,
                                 "case_category": p['category'],
@@ -1489,10 +1490,16 @@ def render_vault():
         return
 
     try:
+        search = st.text_input("Search the vault", placeholder="Case name, section (e.g. 302) or keyword", key="vault_search")
         vq = supabase.table("cases_vault").select("*")
         if st.session_state.get('role') not in REVIEWER_ROLES:
             vq = vq.eq("user_email", st.session_state.get('user_email', ''))
-        cases = vq.order("created_at", desc=True).limit(12).execute().data
+        term = re.sub(r'\s+', ' ', re.sub(r'[%_,()*"\\]', ' ', search or '')).strip()
+        if term:
+            like = f'"%{term}%"'   # quoted so spaces are allowed inside PostgREST or() filters
+            cols = ["title", "summary", "case_category", "relevant_sections_ipc", "relevant_sections_bns", "key_issues"]
+            vq = vq.or_(",".join(f"{c}.ilike.{like}" for c in cols))
+        cases = vq.order("created_at", desc=True).limit(24 if term else 12).execute().data
         if not cases:
             st.markdown("""
                 <div class="pro-card" style="text-align: center; padding: 4rem 2rem !important; border-style: dashed !important; background: #FAFBFC !important;">
