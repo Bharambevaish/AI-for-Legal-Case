@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 # Graceful fallbacks for optional dependencies
 try:
     import torch
-    from transformers import AutoTokenizer, AutoModelForSequenceClassification
+    from transformers import AutoConfig, AutoTokenizer, AutoModelForSequenceClassification
     TRANSFORMERS_AVAILABLE = True
 except ImportError:
     TRANSFORMERS_AVAILABLE = False
@@ -146,7 +146,9 @@ color: #041534 !important;
 font-weight: 700 !important;
 }
 [data-testid="stSidebar"] div[role="radiogroup"] input[type="radio"],
-[data-testid="stSidebar"] div[role="radiogroup"] label > div:first-of-type {
+/* Hide only the radio circle: any div in the option that is not, does not contain, and is not inside
+   the label text. Works for both the old (baseweb) and new (react-aria) Streamlit radio markup. */
+[data-testid="stSidebar"] div[role="radiogroup"] label div:not([data-testid="stMarkdownContainer"]):not([data-testid="stMarkdownContainer"] *):not(:has([data-testid="stMarkdownContainer"])) {
 display: none !important;
 }
 [data-testid="stSidebar"] div.stButton > button {
@@ -375,9 +377,36 @@ def _load_one(module):
     except Exception as tok_err:
         logger.warning(f"Module_{module} tokenizer failed ({tok_err}); using law-ai/InLegalBERT tokenizer")
         tok = AutoTokenizer.from_pretrained("law-ai/InLegalBERT", use_fast=True)
+    # The saved weights decide how many output labels the model has. If config.json
+    # disagrees (e.g. Module_B's 3-label config copied into Module_C, whose head has
+    # 2 labels), transformers refuses to load, so the config is corrected on the fly.
+    head = _checkpoint_num_labels(src) if not kwargs else None
+    if head:
+        cfg = AutoConfig.from_pretrained(src)
+        if cfg.num_labels != head:
+            logger.warning(f"Module_{module}: config.json lists {cfg.num_labels} labels but the saved "
+                           f"weights have {head}; loading with {head} labels.")
+            cfg.id2label = {i: f"LABEL_{i}" for i in range(head)}
+            cfg.label2id = {v: k for k, v in cfg.id2label.items()}
+            kwargs = {**kwargs, "config": cfg}
     mdl = AutoModelForSequenceClassification.from_pretrained(src, **kwargs)
     mdl.eval()
     return tok, mdl
+
+def _checkpoint_num_labels(model_dir):
+    """Number of rows in the saved classifier head (None if it can't be read)."""
+    try:
+        from safetensors import safe_open
+        path = os.path.join(model_dir, "model.safetensors")
+        if not os.path.isfile(path):
+            return None
+        with safe_open(path, framework="pt") as f:
+            for key in f.keys():
+                if key.endswith("classifier.weight"):
+                    return int(f.get_slice(key).get_shape()[0])
+    except Exception as e:
+        logger.warning(f"Could not read classifier size from {model_dir}: {e}")
+    return None
 
 @st.cache_resource(show_spinner="Loading InLegalBERT models...")
 def load_models():
@@ -873,7 +902,9 @@ color: #FFFFFF !important;
 font-weight: 600 !important;
 }
 .stApp:has(#login-root) div[role="radiogroup"] input[type="radio"],
-.stApp:has(#login-root) div[role="radiogroup"] label > div:first-of-type {
+/* Hide only the radio circle: any div in the option that is not, does not contain, and is not inside
+   the label text. Works for both the old (baseweb) and new (react-aria) Streamlit radio markup. */
+.stApp:has(#login-root) div[role="radiogroup"] label div:not([data-testid="stMarkdownContainer"]):not([data-testid="stMarkdownContainer"] *):not(:has([data-testid="stMarkdownContainer"])) {
 display: none !important;
 }
 .stApp:has(#login-root) div[data-testid="stTextInput"] label {

@@ -4,14 +4,19 @@ REM Double-click this file, or run it from the project folder.
 
 cd /d "%~dp0"
 
-if not exist "venv\Scripts\activate.bat" (
-    echo [ERROR] No virtual environment found in "%~dp0venv".
-    echo Create it once with:  python -m venv venv  ^&^&  venv\Scripts\pip install -r requirements.txt
+REM Use .venv if it exists (the one with the packages installed), otherwise venv
+set "VENV_DIR="
+if exist ".venv\Scripts\activate.bat" set "VENV_DIR=.venv"
+if not defined VENV_DIR if exist "venv\Scripts\activate.bat" set "VENV_DIR=venv"
+if not defined VENV_DIR (
+    echo [ERROR] No virtual environment found in "%~dp0".
+    echo Create it once with:  python -m venv .venv  ^&^&  .venv\Scripts\pip install -r requirements.txt
     pause
     exit /b 1
 )
 
-call "venv\Scripts\activate.bat"
+echo Using virtual environment: %VENV_DIR%
+call "%VENV_DIR%\Scripts\activate.bat"
 
 echo.
 echo Running demo readiness check...

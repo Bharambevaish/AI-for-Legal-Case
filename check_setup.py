@@ -33,7 +33,7 @@ ver = sys.version_info
 report("PASS" if (3, 10) <= ver[:2] <= (3, 13) else "WARN", "Python version", sys.version.split()[0])
 in_venv = sys.prefix != getattr(sys, "base_prefix", sys.prefix)
 report("PASS" if in_venv else "FAIL", "Virtual environment active",
-       sys.prefix if in_venv else r"activate it first:  .\venv\Scripts\Activate.ps1  (global Python crashed loading models before)")
+       sys.prefix if in_venv else r"activate it first:  .\.venv\Scripts\Activate.ps1  (or .\venv\Scripts\Activate.ps1)")
 
 # 2. Packages -------------------------------------------------------------
 for mod, pip_name, required in [("streamlit", "streamlit", True), ("torch", "torch", True),
@@ -66,7 +66,18 @@ for module in ("B", "C"):
         report("WARN", f"Module_{module} files", f"missing {missing} - app will try to download from Hugging Face (needs internet)")
     else:
         n = len(json.load(open(os.path.join(d, "config.json"))).get("id2label", {})) or "?"
-        report("PASS", f"Module_{module} files", f"{d} ({n} output labels)")
+        head = None
+        try:
+            from safetensors import safe_open
+            with safe_open(os.path.join(d, "model.safetensors"), framework="pt") as f:
+                head = next((f.get_slice(k).get_shape()[0] for k in f.keys() if k.endswith("classifier.weight")), None)
+        except Exception:
+            pass
+        if head and head != n:
+            report("WARN", f"Module_{module} files", f"config.json says {n} labels but the weights have {head}; "
+                   f"the app loads it with {head} (fine for the demo)")
+        else:
+            report("PASS", f"Module_{module} files", f"{d} ({n} output labels)")
 
 # 5. Load the app's pipeline and run one real prediction -------------------
 try:
