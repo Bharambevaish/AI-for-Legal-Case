@@ -38,9 +38,7 @@ from app import (
     t_c,
     m_c,
     model_load_error,
-    translate_laws_to_bns,
-    clean_legal_text,
-    structure_aware_chunking,
+    prepare_document,
     predict,
     extract_text_from_pdf
 )
@@ -134,8 +132,8 @@ def run_evaluation():
         raw_text = str(row["cleaned_text"])
         
         # Pipeline matching app.py
-        bns_text = translate_laws_to_bns(raw_text)
-        _, crit_text = structure_aware_chunking(bns_text)
+        # Exactly the app's preprocessing path (clean -> sections -> model input)
+        _, _, crit_text = prepare_document(raw_text)
 
         p_jur, c_jur = predict(crit_text, t_b, m_b, jurisdiction_label_map, task="jurisdiction")
         p_out, c_out = predict(crit_text, t_c, m_c, outcome_label_map, task="outcome")
@@ -229,9 +227,7 @@ def run_evaluation():
         with open(p, "rb") as fp:
             text = extract_text_from_pdf(fp)
 
-        clean = clean_legal_text(text)
-        bns_text = translate_laws_to_bns(clean)
-        _, crit_text = structure_aware_chunking(bns_text)
+        _, _, crit_text = prepare_document(text)
 
         p_jur, c_jur = predict(crit_text, t_b, m_b, jurisdiction_label_map, task="jurisdiction")
         p_out, c_out = predict(crit_text, t_c, m_c, outcome_label_map, task="outcome")
