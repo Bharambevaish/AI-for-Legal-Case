@@ -15,8 +15,8 @@
    "unclear": "3/3",
    "unsafe": "6/6"
   },
-  "load_seconds": 2.3,
-  "avg_answer_ms": 5.1,
+  "load_seconds": 0.4,
+  "avg_answer_ms": 2.6,
   "corpus": {
    "statutes": 543,
    "concepts": 58,
@@ -290,8 +290,8 @@
    "expected_case": null,
    "case_ok": null,
    "top_cases": [
-    "Shyamsundar Agarwal v. State of Maharashtra",
-    "Ashok v. State of UP"
+    "Ashok v. State of UP",
+    "Shyamsundar Agarwal v. State of Maharashtra"
    ],
    "passed": true
   },
@@ -367,8 +367,8 @@
    "expected_case": null,
    "case_ok": null,
    "top_cases": [
-    "Shyamsundar Agarwal v. State of Maharashtra",
-    "Ashok v. State of UP"
+    "Ashok v. State of UP",
+    "Shyamsundar Agarwal v. State of Maharashtra"
    ],
    "passed": true
   },
@@ -415,7 +415,7 @@
    "top_cases": [
     "Rallis India Ltd vs State Of Andhra Pradesh",
     "M S Mathra Prashad And Sons vs State Of Punjab",
-    "Excise Commissioner U P Allahabad vs Ram Kumar"
+    "Mangalore Chemicals Fertilisers vs Deputy Commissioner Of Commercial"
    ],
    "passed": true
   },
@@ -462,8 +462,8 @@
    "expected_case": "sunny kumar",
    "case_ok": true,
    "top_cases": [
-    "Janki Sugar Mills Co vs Commissioner Of Meerut Division",
     "The State Of Jharkhand vs Sunny Kumar Sunny Kumar Sao",
+    "Janki Sugar Mills Co vs Commissioner Of Meerut Division",
     "Ramu Gope And Ors vs State Of Bihar"
    ],
    "passed": true
@@ -510,8 +510,7 @@
    "expected_case": "jagan mohan reddy",
    "case_ok": true,
    "top_cases": [
-    "Y S Jagan Mohan Reddy vs C B I",
-    "State Of Maharashtra vs Anand Chintaman Dighe"
+    "Y S Jagan Mohan Reddy vs C B I"
    ],
    "passed": true
   },
@@ -604,7 +603,7 @@
    "top_cases": [
     "Ashok vs State Of Maharashtra",
     "Rama Nand And Ors vs State Of Himachal Pradesh",
-    "The State Of Punjab vs Barkat Ram"
+    "Ashok v. State of UP"
    ],
    "passed": true
   },
@@ -651,8 +650,8 @@
    "case_ok": null,
    "top_cases": [
     "Ashok vs State Of Maharashtra",
-    "Rama Nand And Ors vs State Of Himachal Pradesh",
-    "United Bank Of India vs Biswanath Bhattacharjee"
+    "United Bank Of India vs Biswanath Bhattacharjee",
+    "Rama Nand And Ors vs State Of Himachal Pradesh"
    ],
    "passed": true
   },
@@ -669,7 +668,7 @@
    "top_cases": [
     "M S Mathra Prashad And Sons vs State Of Punjab",
     "Rallis India Ltd vs State Of Andhra Pradesh",
-    "Excise Commissioner U P Allahabad vs Ram Kumar"
+    "Mangalore Chemicals Fertilisers vs Deputy Commissioner Of Commercial"
    ],
    "passed": true
   },
@@ -685,8 +684,8 @@
    "case_ok": null,
    "top_cases": [
     "The Commissioner Of Income Tax Bombay vs The National Syndicate Bombay",
-    "Debi Prasad Dead By L Rs vs Tribeni Devi And Ors",
-    "Commissioner Of Income Tax Madras vs Sivakasi Match Export Company"
+    "Commissioner Of Income Tax Madras vs Sivakasi Match Export Company",
+    "Maya Rani Punj vs Commissioner Of Income Tax Delhi"
    ],
    "passed": true
   },

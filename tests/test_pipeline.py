@@ -85,12 +85,15 @@ def test_lookup_handles_several_sections():
 
 # ── Model-dependent tests ────────────────────────────────────────────────
 
-needs_models = pytest.mark.skipif(not app.MODELS_READY, reason="InLegalBERT models not loaded")
+# app.py loads models lazily; get_models() triggers the (cached) load once for the whole session.
+t_b, m_b, t_c, m_c, model_load_error = app.get_models()
+MODELS_READY = app.models_ready()
+needs_models = pytest.mark.skipif(not MODELS_READY, reason="InLegalBERT models not loaded")
 
 
 @needs_models
 def test_predict_returns_mapped_label_and_probability():
-    label, conf = app.predict("The appellant was convicted under section 302.", app.t_c, app.m_c,
+    label, conf = app.predict("The appellant was convicted under section 302.", t_c, m_c,
                               app.OUTCOME_LABELS, task="outcome")
     assert label in app.OUTCOME_LABELS.values()
     assert 50.0 <= conf <= 100.0   # 2-way probability, even if the head has extra outputs
@@ -120,13 +123,61 @@ def test_window_predict_falls_back_to_heuristic_without_models():
 def test_window_predict_covers_long_documents():
     long_text = ("The appellant was convicted by the trial court under section 302 and the "
                  "High Court affirmed the conviction on the testimony of two witnesses. ") * 125  # ~3000 words
-    enc = app.t_c(long_text, truncation=True, max_length=512, stride=128,
+    enc = t_c(long_text, truncation=True, max_length=512, stride=128,
                   return_overflowing_tokens=True)
     assert len(enc["input_ids"]) > 1
-    label, conf, n = app.predict_windows(long_text, app.t_c, app.m_c, app.OUTCOME_LABELS,
+    label, conf, n = app.predict_windows(long_text, t_c, m_c, app.OUTCOME_LABELS,
                                          task="outcome", return_windows=True)
     assert n > 1
     assert label in app.OUTCOME_LABELS.values()
     assert 50.0 <= conf <= 100.0
     # The public signature still mirrors predict(): (label, confidence %).
-    assert app.predict_windows(long_text, app.t_c, app.m_c, app.OUTCOME_LABELS, task="outcome") == (label, conf)
+    assert app.predict_windows(long_text, t_c, m_c, app.OUTCOME_LABELS, task="outcome") == (label, conf)
+
+
+# ── Lazy model loading: pages other than the predictor must not wait for torch ──
+
+def test_importing_app_does_not_load_models_or_torch():
+    import subprocess
+    code = ("import sys, logging; logging.disable(logging.WARNING); import app; "
+            "print('torch' in sys.modules, 'transformers' in sys.modules)")
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120)
+    assert out.returncode == 0, out.stderr[-2000:]
+    assert out.stdout.strip().splitlines()[-1] == "False False"
+
+
+def test_backward_compatible_model_attributes():
+    # `app.t_c`, `app.MODELS_READY`, `from app import m_c` still work (resolved lazily).
+    assert app.MODELS_READY == MODELS_READY
+    assert app.t_c is t_c and app.model_load_error == model_load_error
+    from app import m_c as imported_m_c
+    assert imported_m_c is m_c
+
+
+# ── Lab: one click on an example = exactly one question/answer pair ─────
+
+def _lab_app():
+    from streamlit.testing.v1 import AppTest
+    at = AppTest.from_file(os.path.join(os.path.dirname(os.path.abspath(app.__file__)), "app.py"),
+                           default_timeout=300)
+    for k, v in dict(authenticated=True, role="Admin", user_email="a@d", user_id="x",
+                     offline_demo=True, chat_history=[], predictions={}).items():
+        at.session_state[k] = v
+    at.query_params["nav"] = "lab"
+    at.run()
+    assert not at.exception
+    return at
+
+
+def test_lab_example_click_is_not_duplicated():
+    at = _lab_app()
+    at.button(key="lab_ex_0").click().run()
+    roles = [m["role"] for m in at.session_state["lab_messages"]]
+    assert roles == ["user", "assistant"]
+    # A second, quick click on the same example (double-click on a slow app) adds nothing.
+    at.button(key="lab_ex_0").click().run()
+    assert len(at.session_state["lab_messages"]) == 2
+    # A different question still goes through.
+    at.button(key="lab_ex_1").click().run()
+    assert len(at.session_state["lab_messages"]) == 4
+    assert not at.exception

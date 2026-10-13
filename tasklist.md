@@ -96,8 +96,21 @@ Goal: a free, offline chatbot that answers law-student questions (sections, conc
 - [x] **Phase 3 – Chat UI:** IPC-BNS Lab rewritten – chat bubbles, example questions, past-case cards with verdict + final order, saves to `student_queries`
 - [x] **Phase 4 – Test harness:** `eval_harness/chatbot_eval.py` + 67 questions → 100% (intent, content, case found in top 3); 21 pytest tests
 - [x] **Phase 5 – Extensions:** `scripts/add_cases.py` (more judgments from CSV/PDFs); optional free LLM rewrite (Ollama / OpenAI-compatible) with offline fallback
-- [ ] Your laptop: `git pull`, restart the app, try the Lab page
+- [x] Your laptop: `git pull`, restart the app, try the Lab page
 - [x] Dataset located: Nikhil shared `labeled_case_categories.csv` (530 MB) on Google Drive; `add_cases.py` now reads it in 500-row chunks with a balanced sample (tested: ~315 MB RAM; chatbot with ~1,600 cases ~480 MB, 11 s load)
-- [ ] Download `labeled_case_categories.csv` from Drive into `eval_harness/original_data/` and run `python scripts/add_cases.py --csv eval_harness/original_data/labeled_case_categories.csv --limit 1000`
+- [x] Downloaded `labeled_case_categories.csv` and added 1,000 cases (1,124 judgments in the bot)
 - [ ] Optional: install Ollama + `qwen2.5:1.5b` and add `LLM_BASE_URL` / `LLM_MODEL` to `secrets.toml`
 - [ ] Write 20+ new real student questions into `eval_harness/chatbot_questions.json` (the current set was used while building, so it flatters the bot)
+
+## 8. Speed + quality round (14 Oct 2026, main agent + 2 sub-agents)
+
+- [x] App starts fast: AI models load only on the Case Predictor page; Lab page first load ~2.5 s (was ~9 s + model load)
+- [x] Chatbot search index saved to `knowledge/.index_cache.joblib` → loads in ~0.5 s (was ~9 s+ rebuild every start)
+- [x] Duplicate chat messages fixed (one click = one answer)
+- [x] Better ranking for multi-topic questions (e.g. "bail in a dowry death case"), passages start at word boundaries, years read from judgment text
+- [x] Drive model folders checked: `Final` = same models as local; checkpoints not needed; `saved_transformer_model` is an older weaker model (62.5%)
+- [x] Real validation accuracy found in Drive `trainer_state.json`: Module B (jurisdiction) 89.7% / F1 0.895, Module C (outcome) 71.6% / F1 0.764 (3 epochs)
+- [ ] Your laptop: `git pull`, then `python -c "from legal_assistant import build_index_cache; build_index_cache()"` once (builds the search index, ~10–30 s), then `streamlit run app.py`
+- [ ] Optional: replace `models/Module_C/Final/config.json` with the one from Drive `Module_C_Model/Final/` (correct 2-label config; removes the startup warning)
+- [ ] After the demo: use the trainer_state numbers above (not 85.2%) in the paper
+

@@ -7,23 +7,34 @@ import hashlib
 import io
 import datetime
 import logging
+import time
 from supabase import create_client, Client
 
 logger = logging.getLogger(__name__)
 
-# Graceful fallbacks for optional dependencies
-try:
-    import torch
-    from transformers import AutoConfig, AutoTokenizer, AutoModelForSequenceClassification
-    TRANSFORMERS_AVAILABLE = True
-except ImportError:
-    TRANSFORMERS_AVAILABLE = False
+# Graceful fallbacks for optional dependencies.
+# torch / transformers / shap are imported LAZILY (on first use by the Case Predictor):
+# `import torch` alone takes 5-15 s on a laptop, and pages like the Lab never need it.
+# A broken install (e.g. Windows OSError 1455 "paging file too small") then surfaces inside
+# load_models(), which reports it as a model-load error instead of crashing the app.
+import importlib
+import importlib.util
 
-try:
-    import shap
-    SHAP_AVAILABLE = True
-except ImportError:
-    SHAP_AVAILABLE = False
+
+class _LazyModule:
+    """Imports the named module on first attribute access (e.g. torch.no_grad)."""
+
+    def __init__(self, name):
+        self._name = name
+
+    def __getattr__(self, attr):
+        return getattr(importlib.import_module(self._name), attr)
+
+
+TRANSFORMERS_AVAILABLE = all(importlib.util.find_spec(m) is not None for m in ("torch", "transformers"))
+SHAP_AVAILABLE = importlib.util.find_spec("shap") is not None
+torch = _LazyModule("torch")
+shap = _LazyModule("shap")
 
 try:
     import pymupdf as fitz
@@ -366,6 +377,7 @@ OUTCOME_LABELS = {0: "Dismissed / Rejected", 1: "Allowed / Accepted"}
 
 def _load_one(module):
     """Load a fine-tuned module from ./models, or from Hugging Face if the local copy is missing."""
+    from transformers import AutoConfig, AutoTokenizer, AutoModelForSequenceClassification
     local_dir = LOCAL_MODEL_DIRS[module]
     if os.path.isfile(os.path.join(local_dir, "config.json")):
         src, kwargs = local_dir, {}
@@ -431,8 +443,35 @@ def load_models():
             err_type = f"other: {type(e).__name__}: {e}"
         return None, None, None, None, err_type
 
-t_b, m_b, t_c, m_c, model_load_error = load_models()
-MODELS_READY = all(x is not None for x in (t_b, m_b, t_c, m_c))
+# Models are loaded LAZILY: only the Case Predictor page (and the SHAP explainer) need them.
+# Loading two InLegalBERT models takes ~20 s and ~1 GB RAM, so doing it at import time left
+# every page (Lab, Vault, History...) blank until it finished. load_models() is still
+# @st.cache_resource, so the first call loads once per server and later calls are instant.
+_MODEL_NAMES = ("t_b", "m_b", "t_c", "m_c", "model_load_error", "MODELS_READY")
+
+
+def get_models():
+    """(tokenizer_b, model_b, tokenizer_c, model_c, error) — loads on first call, then cached."""
+    return load_models()
+
+
+def models_ready():
+    """True when both models loaded. Triggers the (cached) load on first call."""
+    t_b, m_b, t_c, m_c, _ = get_models()
+    return all(x is not None for x in (t_b, m_b, t_c, m_c))
+
+
+def __getattr__(name):
+    """Backward compatibility for `app.t_b`, `app.MODELS_READY`, `from app import t_c` (PEP 562).
+
+    Resolved on first access instead of at import, so importing app stays cheap.
+    """
+    if name in _MODEL_NAMES:
+        t_b, m_b, t_c, m_c, err = get_models()
+        values = dict(t_b=t_b, m_b=m_b, t_c=t_c, m_c=m_c, model_load_error=err,
+                      MODELS_READY=all(x is not None for x in (t_b, m_b, t_c, m_c)))
+        return values[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 MAX_PDF_PAGES = 150          # judgments are rarely longer; protects memory on huge uploads
 MAX_DISPLAY_CHARS = 60_000   # keep the Full Text tab responsive
@@ -678,7 +717,10 @@ def explain_outcome(text, target_label, max_tokens=256, max_evals=300):
     Uses shap.Explainer with a Text masker (Partition explainer). Returns a dict with
     word-level contributions toward `target_label`, or None if SHAP/models are unavailable.
     """
-    if not (SHAP_AVAILABLE and MODELS_READY):
+    if not SHAP_AVAILABLE:
+        return None
+    _, _, t_c, m_c, _ = get_models()
+    if t_c is None or m_c is None:
         return None
     label_ids = {v: k for k, v in OUTCOME_LABELS.items()}
     target = sorted(OUTCOME_LABELS).index(label_ids[target_label])
@@ -1296,7 +1338,11 @@ min-width: 100% !important;
         with st.container(border=True):
             st.markdown('<span id="predictor-upload-card" style="display:none;"></span>', unsafe_allow_html=True)
             st.markdown('<div class="card-header"><h3 class="card-title">Upload Document</h3><span class="card-badge">PDF, TXT</span></div>', unsafe_allow_html=True)
-            if t_b is None or m_b is None or t_c is None or m_c is None:
+            # Loaded here (not at import) so other pages never wait for the models; the
+            # first visit shows the "Loading InLegalBERT models..." spinner inside this card.
+            t_b, m_b, t_c, m_c, model_load_error = get_models()
+            MODELS_READY = all(x is not None for x in (t_b, m_b, t_c, m_c))
+            if not MODELS_READY:
                 if model_load_error == "files_missing":
                     st.warning("⚠️ Deep learning models (InLegalBERT) are unavailable: Model weights or config files are missing in `./models/`. Predictions are running in rule-based heuristic fallback mode.")
                 elif model_load_error == "out_of_memory":
@@ -1524,7 +1570,7 @@ def render_decision_drivers(p):
     st.markdown("<div style='height: 1.5rem;'></div>", unsafe_allow_html=True)
     st.markdown("<h4 style='font-weight: 700; color: #041534; margin-bottom: 0.25rem;'>AI Decision Drivers (SHAP)</h4>", unsafe_allow_html=True)
 
-    if not MODELS_READY:
+    if not models_ready():
         st.info("Decision drivers need the InLegalBERT models, which are not loaded.")
         return
     if not SHAP_AVAILABLE:
@@ -1731,6 +1777,24 @@ def _render_case_cards(cases, key_prefix):
                 st.text(c["final_order"])
 
 
+LAB_DEDUP_SECONDS = 3.0
+
+
+def _is_duplicate_lab_prompt(prompt, history, window=LAB_DEDUP_SECONDS):
+    """True if `prompt` repeats the last question asked within `window` seconds.
+
+    Each click / Enter is a separate Streamlit trigger. When the app is slow (first load of the
+    knowledge base, low RAM) users click an example again because nothing seems to happen, and
+    every queued click used to append another identical user+assistant pair. A deliberate
+    re-ask after a few seconds still goes through.
+    """
+    last = st.session_state.get("lab_last_prompt")
+    if not last or last[0] != prompt or time.time() - last[1] > window:
+        return False
+    last_user = next((m["content"] for m in reversed(history) if m.get("role") == "user"), None)
+    return last_user == prompt
+
+
 def render_lab():
     st.markdown("""
         <div class="animate-in" style='margin-bottom: 1.5rem;'>
@@ -1748,10 +1812,12 @@ def render_lab():
 
     with col_side:
         st.markdown("<h4 style='font-weight: 700; color: #0F172A; margin-bottom: 0.5rem;'>Try asking</h4>", unsafe_allow_html=True)
+        clicked_example = None
         for i, ex in enumerate(LAB_EXAMPLES):
+            # Handled in THIS run (below), not stashed + st.rerun(): the extra rerun hop widened
+            # the window in which a second click on a slow app queued the same question twice.
             if st.button(ex, key=f"lab_ex_{i}", use_container_width=True):
-                st.session_state["lab_pending"] = ex
-                st.rerun()
+                clicked_example = ex
         st.markdown("<div style='height: 0.75rem;'></div>", unsafe_allow_html=True)
         st.caption(f"Knowledge base: {len(bot.statutes)} IPC–BNS sections · {len(bot.concepts)} concepts · "
                    f"{len(bot.cases)} past judgments" + (" · LLM answers on" if bot.llm else " · offline mode"))
@@ -1778,13 +1844,17 @@ def render_lab():
                     _render_case_cards(result["cases"], f"m{n}")
 
         prompt = st.chat_input("Ask about a section, a concept, or describe a case…")
-        prompt = prompt or st.session_state.pop("lab_pending", None)
+        prompt = prompt or clicked_example or st.session_state.pop("lab_pending", None)
+        if prompt and _is_duplicate_lab_prompt(prompt, history):
+            prompt = None
         if prompt:
             past_results = [m["result"] for m in history if m.get("result")]
             with st.spinner("Searching statutes, concepts and past judgments..."):
                 result = bot.answer(prompt, past_results)
             history.append({"role": "user", "content": prompt})
             history.append({"role": "assistant", "content": result["text"], "result": result})
+            # Stamped after answering, so a click queued while the answer was computing is caught.
+            st.session_state["lab_last_prompt"] = (prompt, time.time())
             if supabase:
                 try:
                     supabase.table("student_queries").insert({

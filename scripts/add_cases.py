@@ -13,7 +13,9 @@ Examples (run from the project root, inside the venv):
   python scripts/add_cases.py --pdf-dir "C:/Users/vaish/Downloads/judgments"
 
 Each case keeps at most --max-chars characters of text (default 15,000) so the search index
-stays small enough for an 8 GB laptop. Roughly: 1,500 cases ~ 150-250 MB of RAM.
+stays small enough for an 8 GB laptop. Roughly: 1,000 cases ~ 300 MB of RAM for the app.
+At the end the search index is built once and cached (knowledge/.index_cache.joblib), so the
+app starts in about a second instead of re-indexing every time.
 """
 import argparse
 import os
@@ -27,7 +29,7 @@ sys.path.insert(0, ROOT)
 OUT = os.path.join(ROOT, "knowledge", "extra_cases.csv")
 COHORT = os.path.join(ROOT, "eval_harness", "benchmark_cohort.csv")
 
-from legal_assistant import _case_name_from_id, _final_order  # noqa: E402
+from legal_assistant import _case_name_from_id, _final_order, _year_from_text  # noqa: E402
 
 VERDICT_ALIASES = {"allowed": "allowed", "accepted": "allowed", "1": "allowed", "dismissed": "dismissed",
                    "rejected": "dismissed", "0": "dismissed", "partly_allowed": "partly_allowed",
@@ -104,10 +106,12 @@ def from_csv(path, limit, max_chars, seed=42):
             raw_name = str(r[name_c]) if name_c else ""
             name, year = _case_name_from_id(raw_name) if raw_name else (f"Case {i}", None)
             verdict = VERDICT_ALIASES.get(str(r[verdict_c]).strip().lower(), "unknown") if verdict_c else guess_verdict(text)
+            if year_c and str(r[year_c]).isdigit():
+                year = int(r[year_c])
             rows.append({"name": name, "text": text[:max_chars], "verdict": verdict,
                          "category": str(r[cat_c]) if cat_c else "",
                          "court": str(r[court_c]) if court_c else "Supreme Court of India",
-                         "year": int(r[year_c]) if year_c and str(r[year_c]).isdigit() else year})
+                         "year": year or _year_from_text(text)})
     return rows
 
 
@@ -128,7 +132,7 @@ def from_pdfs(folder, limit, max_chars):
             continue
         name, year = _case_name_from_id(fn)
         rows.append({"name": name, "text": text[:max_chars], "verdict": guess_verdict(text),
-                     "category": "", "court": "", "year": year})
+                     "category": "", "court": "", "year": year or _year_from_text(text)})
         if limit and len(rows) >= limit:
             break
     return rows
@@ -153,6 +157,19 @@ def main():
     new.to_csv(OUT, index=False)
     print(f"Wrote {len(new)} cases to {OUT}")
     print(new["verdict"].value_counts().to_string())
+    del new, rows
+
+    # Build the search index once now (saved to knowledge/.index_cache.joblib), so the next app start
+    # just loads it instead of re-indexing every judgment.
+    print("Building search index ...")
+    import time
+    from legal_assistant import CACHE_PATH, build_index_cache
+    t0 = time.time()
+    bot = build_index_cache()
+    if bot.cache_status == "saved":
+        print(f"  indexed {len(bot.cases)} cases in {time.time() - t0:.0f}s -> {os.path.relpath(CACHE_PATH, ROOT)}")
+    else:
+        print("  could not save the index cache; the app will build it on its first start instead")
     print("Restart the app (streamlit run app.py) to load them.")
 
 

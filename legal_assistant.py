@@ -19,13 +19,18 @@ This module has no Streamlit dependency so it can be tested and evaluated direct
 """
 from __future__ import annotations
 
+import importlib.util
 import json
 import logging
 import os
 import re
-from dataclasses import dataclass, field
+import time
+from collections import Counter
+from dataclasses import asdict, dataclass, field
 
 import numpy as np
+import scipy.sparse as sp
+import sklearn
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS, TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel
 
@@ -38,6 +43,9 @@ LEGACY_MAP_PATH = os.path.join(HERE, "bns_mapping.json")
 COHORT_PATH = os.path.join(HERE, "eval_harness", "benchmark_cohort.csv")
 EXTRA_CASES_PATH = os.path.join(HERE, "knowledge", "extra_cases.csv")
 TEST_PDF_DIR = os.path.join(HERE, "Model Test pdfs")
+# Fitted search indexes are saved here so the app does not rebuild them on every start.
+CACHE_PATH = os.path.join(HERE, "knowledge", ".index_cache.joblib")
+CACHE_VERSION = 1   # bump whenever the index format / chunking / scoring inputs change
 
 DISCLAIMER = "_Study aid only, not legal advice. Always read the full judgment or bare act._"
 
@@ -195,32 +203,108 @@ def _final_order(text):
     return snippet
 
 
+_MONTHS = "January|February|March|April|May|June|July|August|September|October|November|December"
+_DATE = rf"(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:{_MONTHS}),?\s+((?:19|20)\d\d)"
+_DATE_ANY = rf"(?:{_DATE}|(?:{_MONTHS})\s+\d{{1,2}},?\s+((?:19|20)\d\d)|\d{{1,2}}[/.-]\d{{1,2}}[/.-]((?:19|20)\d\d))"
+# Indian Kanoon page header repeated through the text: "X vs Y on 12 February, 1980"
+YEAR_HEADER_RE = re.compile(rf"\b(?:vs?\.?|versus)\s.{{0,250}}?\son\s+{_DATE}", re.I | re.S)
+YEAR_EXPLICIT_RE = re.compile(
+    rf"(?:date\s+of\s+(?:the\s+)?(?:judg?e?ment|decision|order)|decided\s+on|judgment\s+(?:delivered|pronounced)\s+on)"
+    rf"\s*[:\-]?\s*{_DATE_ANY}", re.I)
+YEAR_ON_DATE_RE = re.compile(rf"\bon\s+{_DATE}", re.I)
+YEAR_CITE_RE = re.compile(r"\bAIR\s+((?:19|20)\d\d)\s+(?:SC|Supreme)\b|[(\[]((?:19|20)\d\d)[)\]]\s*\d*\s*(?:SCC|SCR|S\.C\.R)"
+                          r"|\b((?:19|20)\d\d)\s+(?:\(\d+\)\s+)?(?:SCR|SCC|S\.C\.R)\b", re.I)
+
+
+def _plausible_year(y):
+    return y is not None and 1950 <= int(y) <= 2026
+
+
+def _year_from_text(text, head=3000):
+    """Best guess of the decision year of a judgment whose name carries no date (None if nothing plausible).
+
+    1. the "X vs Y on 12 February, 1980" header (most frequent year; ~99% right on the benchmark cohort)
+    2. "Date of Judgment: ..." / "decided on ..." in the first `head` characters
+    3. the latest "on 12 February, 1980" date in the first `head` characters
+    4. the latest law-report citation there ("AIR 1978 SC", "(1990) 1 SCC", "1975 SCR") - a judgment
+       only cites earlier ones, so the latest is the closest lower bound
+    Years outside 1950-2026 are ignored."""
+    if not text:
+        return None
+    t = re.sub(r"\s+", " ", text)
+    ys = [int(m.group(2)) for m in YEAR_HEADER_RE.finditer(t) if _plausible_year(m.group(2))]
+    if ys:
+        return Counter(ys).most_common(1)[0][0]
+    h = t[:head]
+    for m in YEAR_EXPLICIT_RE.finditer(h):
+        y = next(g for g in (m.group(2), m.group(3), m.group(4)) if g)
+        if _plausible_year(y):
+            return int(y)
+    ys = [int(m.group(2)) for m in YEAR_ON_DATE_RE.finditer(h) if _plausible_year(m.group(2))]
+    if ys:
+        return max(ys)
+    cites = [int(g) for m in YEAR_CITE_RE.finditer(h) for g in m.groups() if g and _plausible_year(g)]
+    return max(cites) if cites else None
+
+
 def _chunks(text, size=900, overlap=150):
+    """Overlapping chunks of ~`size` chars that start and end on word boundaries."""
     t = _clean_ws(text)
     if len(t) <= size:
         return [t] if t else []
-    out, i = [], 0
-    while i < len(t):
-        out.append(t[i:i + size])
-        i += size - overlap
+    out, i, n = [], 0, len(t)
+    while i < n:
+        end = min(i + size, n)
+        if end < n:
+            sp_ = t.rfind(" ", i + size // 2, end + 1)
+            if sp_ > i:
+                end = sp_
+        piece = t[i:end].strip()
+        if piece:
+            out.append(piece)
+        if end >= n:
+            break
+        nxt = max(end - overlap, i + 1)
+        if t[nxt - 1] != " ":                      # move to the start of the next word
+            sp_ = t.find(" ", nxt, end)
+            nxt = sp_ + 1 if sp_ != -1 else end + 1
+        i = nxt
     return out
 
 
-def _best_window(passage, query_terms, width=380):
-    """Trim a passage to the window around the first strong query term."""
+def _best_window(passage, query_terms, width=380, lead=60, continued=False):
+    """Trim a passage to the ~`width`-char window that contains the most distinct query terms.
+
+    The window starts and ends on word boundaries (preferring a sentence start just before the first hit).
+    `continued`: the passage is itself taken from the middle of a longer text (adds a leading "…")."""
+    passage = _clean_ws(passage)
+    if len(passage) <= width:
+        return ("…" if continued and passage else "") + passage
     low = passage.lower()
-    pos = [low.find(w) for w in query_terms if len(w) > 3 and low.find(w) >= 0]
-    if not pos:
-        cut = passage.find(" ", 0, 40)
-        passage = passage[cut + 1:] if 0 <= cut < 25 and not passage[:1].isupper() else passage
-        return passage[:width] + ("…" if len(passage) > width else "")
-    c = min(pos)
-    start = max(0, c - width // 3)
-    if start > 0:
-        sp = passage.find(" ", start)
-        start = sp + 1 if 0 <= sp < c else start
-    s = passage[start:start + width]
-    return ("…" if start > 0 else "") + s + ("…" if start + width < len(passage) else "")
+    occ = sorted((m.start(), t) for t in {w.lower() for w in query_terms if len(w) >= 3}
+                 for m in re.finditer(r"\b" + re.escape(t), low))
+    start = 0
+    if occ:
+        best, anchor = -1, 0
+        for j, (p, _) in enumerate(occ):
+            inside = {t for q, t in occ[j:] if q + len(t) <= p + width - lead}
+            if len(inside) > best:
+                best, anchor = len(inside), p
+        start = max(0, anchor - lead)
+        if start > 0:
+            dot = passage.rfind(". ", start, anchor)
+            if dot != -1:
+                start = dot + 2
+            elif passage[start - 1] != " ":
+                sp_ = passage.find(" ", start, anchor)
+                start = sp_ + 1 if sp_ != -1 else anchor
+    end = min(len(passage), start + width)
+    if end < len(passage):
+        sp_ = passage.rfind(" ", start + width // 2, end + 1)
+        if sp_ != -1:
+            end = sp_
+    s = passage[start:end].strip().lstrip(",;:)]").strip()
+    return ("…" if start > 0 or continued else "") + s + ("…" if end < len(passage) else "")
 
 
 # ── Knowledge loading ────────────────────────────────────────────────────
@@ -244,9 +328,12 @@ def load_cases(include_pdfs=True, extra_csv=EXTRA_CASES_PATH, max_chars=60_000):
                 if not text.strip():
                     continue
                 verdict = str(r.get("verdict") or "").strip().lower().replace(" ", "_")
-                year = r.get("year")
+                try:   # pandas reads a year column with blanks as floats (1980.0 / nan)
+                    year = int(float(r.get("year")))
+                except (TypeError, ValueError):
+                    year = None
                 cases.append(Case(id=f"extra_{i}", name=str(r.get("name") or f"Case {i}"),
-                                  court=str(r.get("court") or ""), year=int(year) if str(year).isdigit() else None,
+                                  court=str(r.get("court") or ""), year=year if _plausible_year(year) else None,
                                   category=str(r.get("category") or ""), verdict=verdict, text=text,
                                   source="extra_cases.csv"))
     except Exception as e:
@@ -268,7 +355,29 @@ def load_cases(include_pdfs=True, extra_csv=EXTRA_CASES_PATH, max_chars=60_000):
     for c in cases:
         c.text = _strip_boilerplate(c.text)
         c.final_order = _final_order(c.text)
+        if c.year is None:
+            c.year = _year_from_text(c.text)
     return cases
+
+
+def _input_fingerprint():
+    """Everything the cached index depends on: input files (path, size, mtime) + code/library versions."""
+    files = [STATUTES_PATH, CONCEPTS_PATH, LEGACY_MAP_PATH, COHORT_PATH, EXTRA_CASES_PATH]
+    files += [os.path.join(TEST_PDF_DIR, j[0]) for j in TEST_JUDGMENTS]
+    fp = [("cache_version", CACHE_VERSION), ("sklearn", sklearn.__version__),
+          ("pymupdf", importlib.util.find_spec("pymupdf") is not None)]
+    for f in files:
+        try:
+            st = os.stat(f)
+            fp.append((os.path.relpath(f, HERE), st.st_size, st.st_mtime_ns))
+        except OSError:
+            fp.append((os.path.relpath(f, HERE), None, None))
+    return tuple(fp)
+
+
+def build_index_cache(path=CACHE_PATH):
+    """(Re)build the search index from the knowledge files and save it to `path`. Returns the assistant."""
+    return LegalAssistant(cache_path=path, rebuild=True)
 
 
 def _load_json(path, default):
@@ -282,29 +391,83 @@ def _load_json(path, default):
 
 # ── The assistant ────────────────────────────────────────────────────────
 class LegalAssistant:
-    def __init__(self, statutes=None, concepts=None, cases=None, legacy_map=None, llm=None):
-        self.statutes = statutes if statutes is not None else _load_json(STATUTES_PATH, [])
-        self.concepts = concepts if concepts is not None else _load_json(CONCEPTS_PATH, [])
-        self.legacy_map = legacy_map if legacy_map is not None else _load_json(LEGACY_MAP_PATH, {})
-        self.cases = cases if cases is not None else load_cases()
+    # fitted state saved in / restored from the index cache (besides statutes, concepts, legacy_map, cases)
+    _CACHED = ("stat_vec", "stat_mat", "con_vec", "con_mat", "con_word_vec", "con_word_mat",
+               "chunk_text", "chunk_case", "case_vec", "case_mat", "case_norm")
+
+    def __init__(self, statutes=None, concepts=None, cases=None, legacy_map=None, llm=None,
+                 use_cache=True, cache_path=None, rebuild=False):
+        """Knowledge passed explicitly (as the tests do) is indexed fresh and never cached.
+        Otherwise the fitted indexes are loaded from `cache_path` (default knowledge/.index_cache.joblib)
+        when the input files are unchanged, and rebuilt + saved when they changed or the cache is unreadable."""
         self.llm = llm  # optional dict: {"base_url", "api_key", "model"}
-        self._index_statutes()
-        self._index_concepts()
-        self._index_cases()
+        self.cache_path = cache_path or CACHE_PATH
+        self.cache_status = "off"
+        explicit = any(x is not None for x in (statutes, concepts, cases, legacy_map))
+        cacheable = use_cache and not explicit
+        if not (cacheable and not rebuild and self._load_cache(self.cache_path)):
+            self.statutes = statutes if statutes is not None else _load_json(STATUTES_PATH, [])
+            self.concepts = concepts if concepts is not None else _load_json(CONCEPTS_PATH, [])
+            self.legacy_map = legacy_map if legacy_map is not None else _load_json(LEGACY_MAP_PATH, {})
+            self.cases = cases if cases is not None else load_cases()
+            self._fit_statutes()
+            self._fit_concepts()
+            self._fit_cases()
+            if cacheable:
+                self._save_cache(self.cache_path)
+        self._lookups()
+
+    # ── index cache ──
+    def _load_cache(self, path):
+        if not os.path.isfile(path):
+            self.cache_status = "missing"
+            return False
+        try:
+            import joblib
+            t0 = time.time()
+            data = joblib.load(path)
+            if not isinstance(data, dict) or data.get("fingerprint") != _input_fingerprint():
+                self.cache_status = "stale"
+                return False
+            self.statutes, self.concepts, self.legacy_map = data["statutes"], data["concepts"], data["legacy_map"]
+            self.cases = [Case(**c) for c in data["cases"]]
+            for k in self._CACHED:
+                setattr(self, k, data[k])
+            self.cache_status = "loaded"
+            logger.info(f"Loaded search index cache ({len(self.cases)} cases) in {time.time() - t0:.1f}s")
+            return True
+        except Exception as e:   # corrupt / truncated / incompatible pickle -> rebuild
+            logger.warning(f"Ignoring unreadable index cache {path}: {e}")
+            self.cache_status = "corrupt"
+            return False
+
+    def _save_cache(self, path):
+        try:
+            import joblib
+            data = {"fingerprint": _input_fingerprint(), "statutes": self.statutes, "concepts": self.concepts,
+                    "legacy_map": self.legacy_map, "cases": [asdict(c) for c in self.cases]}
+            data.update({k: getattr(self, k) for k in self._CACHED})
+            os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+            tmp = f"{path}.{os.getpid()}.tmp"
+            joblib.dump(data, tmp)
+            os.replace(tmp, path)   # atomic: a crash mid-write never leaves a half-written cache
+            self.cache_status = "saved"
+        except Exception as e:
+            logger.warning(f"Could not save index cache {path}: {e}")
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
 
     # ── indexes ──
-    def _index_statutes(self):
+    def _lookups(self):
+        """Cheap derived structures, rebuilt on every start (from fresh or cached data)."""
         self.by_ipc, self.by_bns = {}, {}
         for row in self.statutes:
             if row.get("ipc"):
                 self.by_ipc.setdefault(_norm_section(row["ipc"]), []).append(row)
             if row.get("bns"):
                 self.by_bns.setdefault(_norm_section(row["bns"]), []).append(row)
-        docs = [f"{r.get('bns_title', '')} {r.get('ipc_title', '')}" for r in self.statutes] or [""]
-        self.stat_vec = TfidfVectorizer(stop_words="english", ngram_range=(1, 2), sublinear_tf=True)
-        self.stat_mat = self.stat_vec.fit_transform(docs)
-
-    def _index_concepts(self):
         self.alias_index = []  # (normalized alias, concept)
         for c in self.concepts:
             for a in set([c.get("term", "")] + list(c.get("aliases", []))):
@@ -312,27 +475,77 @@ class LegalAssistant:
                 if na:
                     self.alias_index.append((na, c))
         self.alias_index.sort(key=lambda x: -len(x[0]))   # longest (most specific) aliases first
-        docs = [" ".join([c.get("term", "")] + c.get("aliases", [])) for c in self.concepts] or [""]
+        self.vocab = set(self.case_vec.vocabulary_) | set(self.con_word_vec.vocabulary_) | set(self.stat_vec.vocabulary_)
+        self._case_analyzer = self.case_vec.build_analyzer()
+        counts = np.bincount(self.chunk_case, minlength=len(self.cases)) if len(self.chunk_case) else \
+            np.zeros(len(self.cases), dtype=int)
+        self.case_chunk_start = np.concatenate([[0], np.cumsum(counts)[:-1]]).astype(int) if len(counts) else counts
+        self.case_chunk_count = counts
+
+    @staticmethod
+    def _slim(vec):
+        """Drop the (potentially huge) set of pruned terms; sklearn keeps it only for introspection."""
+        if hasattr(vec, "stop_words_"):
+            try:
+                delattr(vec, "stop_words_")
+            except Exception:
+                pass
+        # numpy-int values unpickle ~10x slower than plain ints (matters for a 200k-term vocabulary)
+        if hasattr(vec, "vocabulary_"):
+            vec.vocabulary_ = {k: int(v) for k, v in vec.vocabulary_.items()}
+        return vec
+
+    def _fit_statutes(self):
+        docs = [f"{r.get('bns_title', '')} {r.get('ipc_title', '')}" for r in self.statutes] or ["placeholder"]
+        self.stat_vec = TfidfVectorizer(stop_words="english", ngram_range=(1, 2), sublinear_tf=True)
+        self.stat_mat = self.stat_vec.fit_transform(docs)
+        self._slim(self.stat_vec)
+
+    def _fit_concepts(self):
+        docs = [" ".join([c.get("term", "")] + c.get("aliases", [])) for c in self.concepts] or ["placeholder"]
         # character n-grams make the fallback tolerant of typos ("bial", "anticipatry")
         self.con_vec = TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), sublinear_tf=True)
         self.con_mat = self.con_vec.fit_transform(docs)
-        body = [" ".join([c.get("term", ""), " ".join(c.get("aliases", [])), c.get("answer", "")]) for c in self.concepts] or [""]
+        body = [" ".join([c.get("term", ""), " ".join(c.get("aliases", [])), c.get("answer", "")]) for c in self.concepts] or ["placeholder"]
         self.con_word_vec = TfidfVectorizer(stop_words="english", sublinear_tf=True)
         self.con_word_mat = self.con_word_vec.fit_transform(body)
+        self._slim(self.con_vec)
+        self._slim(self.con_word_vec)
 
-    def _index_cases(self):
-        self.chunk_case, chunk_text = [], []
+    @staticmethod
+    def _chunk_head(c):
+        return f"{c.name}. {c.category}. "
+
+    def _fit_cases(self):
+        chunk_case, chunk_text = [], []
         for ci, c in enumerate(self.cases):
-            head = f"{c.name}. {c.category}. "
+            head = self._chunk_head(c)
             for ch in _chunks(c.text):
-                self.chunk_case.append(ci)
+                chunk_case.append(ci)
                 chunk_text.append(head + ch)
         self.chunk_text = chunk_text
-        self.chunk_case = np.array(self.chunk_case, dtype=int)
+        self.chunk_case = np.array(chunk_case, dtype=np.int32)
         self.case_vec = TfidfVectorizer(stop_words=CASE_STOP_WORDS, ngram_range=(1, 2), sublinear_tf=True,
-                                        min_df=1, max_df=0.6, max_features=200_000)
-        self.case_mat = self.case_vec.fit_transform(chunk_text or [""])
-        self.vocab = set(self.case_vec.vocabulary_) | set(self.con_word_vec.vocabulary_) | set(self.stat_vec.vocabulary_)
+                                        min_df=1, max_df=0.6 if len(chunk_text) > 4 else 1.0,
+                                        max_features=200_000, dtype=np.float32)
+        self.case_mat = self.case_vec.fit_transform(chunk_text or ["placeholder"]).tocsr()
+        self._slim(self.case_vec)
+        # Norm of each case's summed chunk vectors, so that  sum_i(q·chunk_i) / norm  is the cosine between the
+        # query and the whole case. Computed in blocks of cases to keep peak RAM low.
+        n = len(self.cases)
+        self.case_norm = np.zeros(n, dtype=np.float32)
+        if len(self.chunk_case) and self.case_mat.shape[0] == len(self.chunk_case):
+            bounds = np.searchsorted(self.chunk_case, np.arange(n + 1))
+            for b in range(0, n, 256):
+                e = min(n, b + 256)
+                r0, r1 = bounds[b], bounds[e]
+                if r1 == r0:
+                    continue
+                rows = self.chunk_case[r0:r1] - b
+                ind = sp.csr_matrix((np.ones(r1 - r0, dtype=np.float32), (rows, np.arange(r1 - r0))),
+                                    shape=(e - b, r1 - r0))
+                agg = ind @ self.case_mat[r0:r1]
+                self.case_norm[b:e] = np.sqrt(np.asarray(agg.multiply(agg).sum(axis=1)).ravel())
 
     # ── public API ──
     def answer(self, question, history=None):
@@ -616,29 +829,56 @@ class LegalAssistant:
         qv = self.case_vec.transform([q])
         if qv.nnz == 0:
             return []
-        sims = linear_kernel(qv, self.case_mat).ravel()
-        order = np.argsort(-sims)
-        best_per_case = {}
-        for i in order[:400]:
-            ci = int(self.chunk_case[i])
-            if ci not in best_per_case:
-                best_per_case[ci] = (float(sims[i]), int(i))
-            if len(best_per_case) >= k * 4:
-                break
-        ranked = sorted(best_per_case.items(), key=lambda kv: -kv[1][0])
-        terms = [t for t in re.findall(r"[a-z]{4,}", q.lower()) if t not in CASE_STOP_WORDS]
+        n = len(self.cases)
+        sims = np.asarray((self.case_mat @ qv.T).todense()).ravel()
+        # (a) best single chunk per case, (b) cosine with the whole case
+        best = np.zeros(n, dtype=np.float64)
+        np.maximum.at(best, self.chunk_case, sims)
+        whole = np.bincount(self.chunk_case, weights=sims, minlength=n)
+        whole = np.divide(whole, self.case_norm, out=np.zeros(n), where=self.case_norm > 0)
+
+        # candidates: strongest cases by either signal that pass the relevance threshold
+        cand = set(np.argsort(-best)[:40].tolist()) | set(np.argsort(-whole)[:40].tolist())
+        cand = [ci for ci in cand if best[ci] >= min_score]
+        if not cand:
+            return []
+
+        # (c) coverage: share of the distinct informative query words that occur anywhere in the case
+        words = list(dict.fromkeys(t for t in self._case_analyzer(q) if " " not in t))
+        term_idx = [self.case_vec.vocabulary_[t] for t in words if t in self.case_vec.vocabulary_]
+        rows = np.concatenate([np.arange(self.case_chunk_start[ci], self.case_chunk_start[ci] + self.case_chunk_count[ci])
+                               for ci in cand])
+        if term_idx:
+            present = (self.case_mat[rows][:, term_idx] > 0).toarray()     # chunks x terms
+        else:
+            present = np.ones((len(rows), 1), dtype=bool)
+        info, pos = {}, 0
+        for ci in cand:
+            m = int(self.case_chunk_count[ci])
+            p = present[pos:pos + m]
+            r = rows[pos:pos + m]
+            pos += m
+            cov = p.any(axis=0).mean()
+            # passage chunk: the one with the most distinct query words, then the most similar
+            hits = p.sum(axis=1)
+            j = max(range(m), key=lambda x: (hits[x], sims[r[x]]))
+            score = (0.6 * best[ci] + 0.4 * whole[ci]) * (0.3 + 0.7 * cov)
+            info[ci] = (float(score), int(r[j]))
+        ranked = sorted(info.items(), key=lambda kv: -kv[1][0])
+
+        terms = [t for t in words if len(t) >= 3] or \
+            [t for t in re.findall(r"[a-z]{4,}", q.lower()) if t not in CASE_STOP_WORDS]
         out = []
         for ci, (score, chunk_i) in ranked[:k]:
-            if score < min_score:
-                break
             c = self.cases[ci]
-            passage = self.chunk_text[chunk_i].split(". ", 2)[-1]
+            passage = self.chunk_text[chunk_i][len(self._chunk_head(c)):]
             out.append({
                 "id": c.id, "name": c.name, "court": c.court, "year": c.year, "category": c.category,
                 "verdict": VERDICT_TEXT.get(c.verdict, c.verdict or "Unknown"),
                 "verdict_short": {"allowed": "Allowed", "dismissed": "Dismissed",
                                   "partly_allowed": "Partly allowed"}.get(c.verdict, c.verdict or "Unknown"),
-                "score": round(score, 3), "passage": _best_window(passage, terms),
+                "score": round(score, 3),
+                "passage": _best_window(passage, terms, continued=chunk_i != self.case_chunk_start[ci]),
                 "final_order": c.final_order,
             })
         return out
@@ -669,14 +909,16 @@ class LegalAssistant:
         c = next((x for x in self.cases if x.id == ids[idx]), None)
         if not c:
             return None
-        facts = _clean_ws(c.text[:700])
+        facts = _clean_ws(c.text[:760])
+        if len(facts) > 700:
+            facts = facts[:700].rsplit(" ", 1)[0]
         text = (f"**{c.name}** — {c.court}, {c.year or 'year n/a'} · {c.category}\n\n"
                 f"**Verdict:** {VERDICT_TEXT.get(c.verdict, c.verdict)}\n\n"
                 f"**Opening of the judgment:** {facts}…\n\n"
                 f"**What the court finally ordered:** {c.final_order}\n\n{DISCLAIMER}")
         card = {"id": c.id, "name": c.name, "court": c.court, "year": c.year, "category": c.category,
                 "verdict": VERDICT_TEXT.get(c.verdict, c.verdict), "verdict_short": c.verdict,
-                "passage": facts[:380], "final_order": c.final_order, "score": None}
+                "passage": _best_window(facts, []), "final_order": c.final_order, "score": None}
         return Result("case_search", text, cases=[card], sources=[c.name], context={"cases": ids})
 
     # ── fixed replies ──

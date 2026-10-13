@@ -87,29 +87,32 @@ except Exception:
     pass
 
 app = None
+MODELS_READY = False
 out = crit = None
 try:
     t0 = time.time()
     import logging
     logging.disable(logging.WARNING)   # hide Streamlit's harmless "bare mode" warnings
     try:
-        import app  # noqa: E402  (loads both InLegalBERT models through the app's own loader)
+        import app  # noqa: E402  (cheap: the app loads its models lazily)
+        t_b, m_b, t_c, m_c, model_load_error = app.get_models()   # loads both InLegalBERT models
     finally:
         logging.disable(logging.NOTSET)
-    if app.MODELS_READY:
+    MODELS_READY = all(x is not None for x in (t_b, m_b, t_c, m_c))
+    if MODELS_READY:
         report("PASS", "Models load", f"{time.time() - t0:.1f} s")
     else:
-        report("FAIL", "Models load", f"{app.model_load_error} - app would fall back to rule-based mode")
+        report("FAIL", "Models load", f"{model_load_error} - app would fall back to rule-based mode")
 except Exception as e:
     report("FAIL", "Import app.py", f"{type(e).__name__}: {e}")
 
 sample_path = os.path.join("Model Test pdfs", "perfect_test_case.txt")
-if app is not None and app.MODELS_READY and os.path.isfile(sample_path):
+if app is not None and MODELS_READY and os.path.isfile(sample_path):
     text = open(sample_path, encoding="utf-8", errors="ignore").read()
     t0 = time.time()
     _, sections, crit = app.prepare_document(text)
-    jur, jc = app.predict(crit, app.t_b, app.m_b, app.JURISDICTION_LABELS, task="jurisdiction")
-    out, oc = app.predict(crit, app.t_c, app.m_c, app.OUTCOME_LABELS, task="outcome")
+    jur, jc = app.predict(crit, t_b, m_b, app.JURISDICTION_LABELS, task="jurisdiction")
+    out, oc = app.predict(crit, t_c, m_c, app.OUTCOME_LABELS, task="outcome")
     if jur and out:
         report("PASS", "Test prediction", f"{jur} ({jc:.1f}%), {out} ({oc:.1f}%) in {time.time() - t0:.1f} s")
     else:
@@ -147,7 +150,7 @@ else:
         report("FAIL", "Supabase check", f"{type(e).__name__}: {e}")
 
 # 7. SHAP (last, because it is the most memory-hungry step) ------------------
-if "--shap" in sys.argv and app is not None and app.MODELS_READY and out:
+if "--shap" in sys.argv and app is not None and MODELS_READY and out:
     if not app.SHAP_AVAILABLE:
         report("WARN", "SHAP decision drivers", "pip install shap")
     else:

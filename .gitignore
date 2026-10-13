@@ -10,3 +10,5 @@ eval_harness/original_data/
 .env
 design_ref/
 .pytest_cache/
+.index_cache.joblib
+*.joblib.*.tmp

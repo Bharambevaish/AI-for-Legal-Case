@@ -33,15 +33,14 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 sys.path.insert(0, os.path.abspath("."))
 
 from app import (
-    t_b,
-    m_b,
-    t_c,
-    m_c,
-    model_load_error,
+    get_models,
     prepare_document,
     predict,
     extract_text_from_pdf
 )
+
+# app.py loads its models lazily; the eval needs them, so load them now (cached by the app).
+t_b, m_b, t_c, m_c, model_load_error = get_models()
 
 from sklearn.metrics import (
     accuracy_score,
