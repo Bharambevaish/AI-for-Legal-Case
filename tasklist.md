@@ -97,6 +97,7 @@ Goal: a free, offline chatbot that answers law-student questions (sections, conc
 - [x] **Phase 4 – Test harness:** `eval_harness/chatbot_eval.py` + 67 questions → 100% (intent, content, case found in top 3); 21 pytest tests
 - [x] **Phase 5 – Extensions:** `scripts/add_cases.py` (more judgments from CSV/PDFs); optional free LLM rewrite (Ollama / OpenAI-compatible) with offline fallback
 - [ ] Your laptop: `git pull`, restart the app, try the Lab page
-- [ ] Get `labeled_case_categories.csv` (10,231 cases) from the teammate's laptop and run `python scripts/add_cases.py --csv <path> --limit 1500`
+- [x] Dataset located: Nikhil shared `labeled_case_categories.csv` (530 MB) on Google Drive; `add_cases.py` now reads it in 500-row chunks with a balanced sample (tested: ~315 MB RAM; chatbot with ~1,600 cases ~480 MB, 11 s load)
+- [ ] Download `labeled_case_categories.csv` from Drive into `eval_harness/original_data/` and run `python scripts/add_cases.py --csv eval_harness/original_data/labeled_case_categories.csv --limit 1000`
 - [ ] Optional: install Ollama + `qwen2.5:1.5b` and add `LLM_BASE_URL` / `LLM_MODEL` to `secrets.toml`
 - [ ] Write 20+ new real student questions into `eval_harness/chatbot_questions.json` (the current set was used while building, so it flatters the bot)

@@ -7,6 +7,7 @@ Examples (run from the project root, inside the venv):
 
   # the project's full training dataset (10,231 judgments) - only part of it, to keep RAM low
   python scripts/add_cases.py --csv eval_harness/original_data/labeled_case_categories.csv --limit 1500
+  #   (reads the 530 MB file in 500-row chunks and keeps a balanced sample by category x verdict)
 
   # a folder of judgment PDFs (verdict is guessed from the final order, or left 'unknown')
   python scripts/add_cases.py --pdf-dir "C:/Users/vaish/Downloads/judgments"
@@ -52,38 +53,61 @@ def guess_verdict(text):
     return "unknown"
 
 
-def from_csv(path, limit, max_chars):
-    df = pd.read_csv(path)
-    text_c = pick(df, "cleaned_text", "text", "judgment", "judgement", "content")
+def from_csv(path, limit, max_chars, seed=42):
+    """Two light passes over a (possibly huge) CSV, 500 rows at a time:
+    1) read only the name/verdict/category columns and choose a balanced sample
+       (equal share per category x verdict), 2) read the text of just those rows."""
+    header = pd.read_csv(path, nrows=0)
+    text_c = pick(header, "cleaned_text", "text", "judgment", "judgement", "content")
     if not text_c:
-        sys.exit(f"No text column found in {path}. Columns: {list(df.columns)}")
-    name_c = pick(df, "name", "case_name", "title", "case_id")
-    verdict_c = pick(df, "verdict", "label", "raw_label", "outcome")
-    cat_c = pick(df, "category", "case_category", "true_case_category")
-    court_c = pick(df, "court")
-    year_c = pick(df, "year")
+        sys.exit(f"No text column found in {path}. Columns: {list(header.columns)}")
+    name_c = pick(header, "name", "case_name", "title", "case_id")
+    verdict_c = pick(header, "verdict", "label", "raw_label", "outcome")
+    cat_c = pick(header, "category", "case_category", "true_case_category")
+    court_c = pick(header, "court")
+    year_c = pick(header, "year")
+    meta_cols = [c for c in (name_c, verdict_c, cat_c) if c]
 
     # never duplicate the 120 cases already loaded from benchmark_cohort.csv
     skip = set()
     if os.path.isfile(COHORT):
         skip = set(pd.read_csv(COHORT, usecols=["case_id"])["case_id"].astype(str))
 
-    rows = []
-    for _, r in df.iterrows():
-        raw_name = str(r[name_c]) if name_c else ""
-        if raw_name in skip:
-            continue
-        text = str(r[text_c] or "")
-        if len(text.strip()) < 500:
-            continue
-        name, year = _case_name_from_id(raw_name) if raw_name else (f"Case {len(rows) + 1}", None)
-        verdict = VERDICT_ALIASES.get(str(r[verdict_c]).strip().lower(), "unknown") if verdict_c else guess_verdict(text)
-        rows.append({"name": name, "text": text[:max_chars], "verdict": verdict,
-                     "category": str(r[cat_c]) if cat_c else "",
-                     "court": str(r[court_c]) if court_c else "Supreme Court of India",
-                     "year": int(r[year_c]) if year_c and str(r[year_c]).isdigit() else year})
-        if limit and len(rows) >= limit:
-            break
+    print("Pass 1/2: scanning case list ...")
+    meta = pd.concat(pd.read_csv(path, usecols=meta_cols or [text_c], chunksize=500), ignore_index=True)
+    if name_c:
+        meta = meta[~meta[name_c].astype(str).isin(skip)]
+    print(f"  {len(meta)} candidate cases")
+    if limit and len(meta) > limit:
+        groups = [g for g in (meta[cat_c].astype(str) if cat_c else [""] * len(meta),
+                              meta[verdict_c].astype(str) if verdict_c else [""] * len(meta))]
+        key = groups[0] + "|" + groups[1]
+        per = max(1, limit // key.nunique())
+        chosen = meta.groupby(key, group_keys=False).apply(lambda g: g.sample(min(len(g), per), random_state=seed))
+        if len(chosen) < limit:   # top up from what is left
+            rest = meta.drop(chosen.index)
+            chosen = pd.concat([chosen, rest.sample(min(len(rest), limit - len(chosen)), random_state=seed)])
+        wanted = set(chosen.index[:limit])
+    else:
+        wanted = set(meta.index)
+
+    print(f"Pass 2/2: reading text of {len(wanted)} cases ...")
+    rows, offset = [], 0
+    usecols = list(dict.fromkeys([c for c in (name_c, text_c, verdict_c, cat_c, court_c, year_c) if c]))
+    for chunk in pd.read_csv(path, usecols=usecols, chunksize=500):
+        chunk.index = range(offset, offset + len(chunk))
+        offset += len(chunk)
+        for i, r in chunk[chunk.index.isin(wanted)].iterrows():
+            text = str(r[text_c] or "")
+            if len(text.strip()) < 500:
+                continue
+            raw_name = str(r[name_c]) if name_c else ""
+            name, year = _case_name_from_id(raw_name) if raw_name else (f"Case {i}", None)
+            verdict = VERDICT_ALIASES.get(str(r[verdict_c]).strip().lower(), "unknown") if verdict_c else guess_verdict(text)
+            rows.append({"name": name, "text": text[:max_chars], "verdict": verdict,
+                         "category": str(r[cat_c]) if cat_c else "",
+                         "court": str(r[court_c]) if court_c else "Supreme Court of India",
+                         "year": int(r[year_c]) if year_c and str(r[year_c]).isdigit() else year})
     return rows
 
 
