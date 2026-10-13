@@ -1,6 +1,6 @@
 # Legal AI Hub — Task List
 
-Last updated: 13 Oct 2026, 01:40 IST · Branch: `fix/submission-critical` · [Pull request #1](https://github.com/Bharambevaish/AI-for-Legal-Case/pull/1)
+Last updated: 14 Oct 2026, IST · Branch: `fix/submission-critical` · [Pull request #1](https://github.com/Bharambevaish/AI-for-Legal-Case/pull/1)
 
 **Summary:** 30 of 31 bugs fixed · 1 bug pending (C9, deferred by choice) · 7 demo-day tasks pending on your laptop · 12 of 12 tests passing.
 
@@ -86,3 +86,17 @@ Last updated: 13 Oct 2026, 01:40 IST · Branch: `fix/submission-critical` · [Pu
 - [ ] Retrain Module B (Constitutional recall 30%) and Module C as 3-class
 - [ ] Decide which of the 7 duplicate paper PDFs in `Documents/Research paper doc/` is final
 - [ ] Merge PR #1 into `main`
+
+## 7. Legal Study Assistant chatbot (started 14 Oct 2026)
+
+Goal: a free, offline chatbot that answers law-student questions (sections, concepts, past cases with verdicts) and handles negative questions safely.
+
+- [x] **Phase 1 – Knowledge base:** 543 IPC↔BNS rows from the official table (`knowledge/statutes.json`), 58 verified concepts (`knowledge/concepts.json`), 124 past judgments with real verdicts
+- [x] **Phase 2 – Search + answer engine:** `legal_assistant.py` – intent routing (section / concept / past cases / greeting / help / off-topic / unsafe / unclear), TF-IDF search, cited answers, follow-ups
+- [x] **Phase 3 – Chat UI:** IPC-BNS Lab rewritten – chat bubbles, example questions, past-case cards with verdict + final order, saves to `student_queries`
+- [x] **Phase 4 – Test harness:** `eval_harness/chatbot_eval.py` + 67 questions → 100% (intent, content, case found in top 3); 21 pytest tests
+- [x] **Phase 5 – Extensions:** `scripts/add_cases.py` (more judgments from CSV/PDFs); optional free LLM rewrite (Ollama / OpenAI-compatible) with offline fallback
+- [ ] Your laptop: `git pull`, restart the app, try the Lab page
+- [ ] Get `labeled_case_categories.csv` (10,231 cases) from the teammate's laptop and run `python scripts/add_cases.py --csv <path> --limit 1500`
+- [ ] Optional: install Ollama + `qwen2.5:1.5b` and add `LLM_BASE_URL` / `LLM_MODEL` to `secrets.toml`
+- [ ] Write 20+ new real student questions into `eval_harness/chatbot_questions.json` (the current set was used while building, so it flatters the bot)

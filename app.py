@@ -1698,118 +1698,102 @@ def chat_markup(text):
     safe = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', safe)
     return safe.replace("\n", "<br>")
 
+@st.cache_resource(show_spinner="Loading the legal knowledge base (statutes, concepts, past judgments)...")
+def get_legal_assistant(llm_key=None):
+    """Build the study assistant once per server (index build takes a few seconds)."""
+    from legal_assistant import LegalAssistant, llm_config_from
+    llm = llm_config_from(lambda k: _get_secret(k) or os.environ.get(k)) if llm_key else None
+    return LegalAssistant(llm=llm)
+
+
+LAB_EXAMPLES = [
+    "What is 302 IPC in BNS?",
+    "Explain anticipatory bail",
+    "Difference between murder and culpable homicide",
+    "Past cases where a conviction rested only on circumstantial evidence",
+    "Which BNS section deals with organised crime?",
+    "Can an FIR for attempt to murder be quashed after a compromise?",
+]
+
+
+def _render_case_cards(cases, key_prefix):
+    for i, c in enumerate(cases or []):
+        verdict = c.get("verdict_short") or c.get("verdict", "")
+        icon = "🟢" if str(verdict).lower().startswith("allowed") else ("🔴" if str(verdict).lower().startswith("dismissed") else "🟡")
+        title = f"{icon} {c['name']} — {c.get('court', '')}, {c.get('year') or 'n/a'} · {verdict}"
+        with st.expander(title, expanded=False):
+            st.markdown(f"**Category:** {c.get('category') or '—'}  \n**Verdict:** {c.get('verdict', '')}")
+            if c.get("passage"):
+                st.markdown("**Most relevant passage**")
+                st.text(c["passage"])
+            if c.get("final_order"):
+                st.markdown("**What the court finally ordered**")
+                st.text(c["final_order"])
+
+
 def render_lab():
     st.markdown("""
-        <div class="animate-in" style='margin-bottom: 2rem;'>
+        <div class="animate-in" style='margin-bottom: 1.5rem;'>
             <span class="badge badge-navy" style="margin-bottom: 0.5rem;">Statutory Lab</span>
-            <h1 style="font-weight: 800; font-size: 2.2rem; color: #0F172A; margin: 0; letter-spacing: -0.02em;">IPC-BNS Translation Lab</h1>
-            <p style='color: #64748B; font-size: 0.95rem; margin-top: 0.35rem;'>AI-powered consultation for mapping legacy IPC codes to modern BNS equivalents.</p>
+            <h1 style="font-weight: 800; font-size: 2.2rem; color: #0F172A; margin: 0; letter-spacing: -0.02em;">Legal Study Assistant</h1>
+            <p style='color: #64748B; font-size: 0.95rem; margin-top: 0.35rem;'>Ask about IPC ↔ BNS sections, legal concepts, or describe facts to find similar past judgments and their verdicts.</p>
         </div>
     """, unsafe_allow_html=True)
 
-    # Determine last searched query to filter relevant cases
-    last_query = st.session_state.get('last_statute_query', '')
-    if not last_query and st.session_state.get('chat_history'):
-        for msg in reversed(st.session_state.chat_history):
-            if msg.get('role') == 'user':
-                last_query = msg.get('content', '')
-                break
+    llm_on = bool(_get_secret("LLM_BASE_URL") or os.environ.get("LLM_BASE_URL"))
+    bot = get_legal_assistant("on" if llm_on else None)
+    history = st.session_state.setdefault("lab_messages", [])
 
-    related_cases = []
-    if last_query and supabase:
-        sec_m = re.search(r'\d+[A-Za-z]?', last_query)
-        filter_term = sec_m.group(0) if sec_m else (last_query.strip() if len(last_query.strip()) >= 3 else "")
-        if filter_term:
-            try:
-                clean_term = re.sub(r'[%_,\(\)]', '', filter_term).strip()
-                if clean_term:
-                    res = supabase.table("cases_vault").select("*").or_(
-                        f"title.ilike.%{clean_term}%,summary.ilike.%{clean_term}%"
-                    ).limit(3).execute()
-                    related_cases = res.data or []
-            except Exception as e:
-                logger.warning(f"Error fetching related cases: {e}")
-                related_cases = []
+    col_side, col_chat = st.columns([1, 2.6], gap="large")
 
-    col_sidebar, col_chat = st.columns([1, 2.2], gap="large")
-
-    with col_sidebar:
-        if related_cases:
-            st.markdown("<h4 style='font-weight: 700; color: #0F172A; margin-bottom: 0.75rem;'>Related Cases</h4>", unsafe_allow_html=True)
-            for c in related_cases:
-                c_title = html.escape(re.sub(r'\s+', ' ', str(c.get('title', 'Untitled'))).strip())
-                c_summary = html.escape(re.sub(r'\s+', ' ', str(c.get('summary') or '')).strip()[:100])
-                st.markdown(f"""
-                    <div class="pro-card" style="padding: 1.1rem !important; margin-bottom: 0.75rem !important;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-                            <span class="badge badge-blue" style="font-size: 0.6rem;">{html.escape(str(c.get('case_category') or 'General'))}</span>
-                        </div>
-                        <h5 style="font-size: 0.85rem; font-weight: 700; color: #0F172A; margin: 0 0 0.25rem 0;">{c_title}</h5>
-                        <p style="font-size: 0.72rem; color: #64748B; margin: 0; line-height: 1.5; height: 32px; overflow: hidden;">{c_summary}</p>
-                    </div>
-                """, unsafe_allow_html=True)
+    with col_side:
+        st.markdown("<h4 style='font-weight: 700; color: #0F172A; margin-bottom: 0.5rem;'>Try asking</h4>", unsafe_allow_html=True)
+        for i, ex in enumerate(LAB_EXAMPLES):
+            if st.button(ex, key=f"lab_ex_{i}", use_container_width=True):
+                st.session_state["lab_pending"] = ex
+                st.rerun()
+        st.markdown("<div style='height: 0.75rem;'></div>", unsafe_allow_html=True)
+        st.caption(f"Knowledge base: {len(bot.statutes)} IPC–BNS sections · {len(bot.concepts)} concepts · "
+                   f"{len(bot.cases)} past judgments" + (" · LLM answers on" if bot.llm else " · offline mode"))
+        if history and st.button("Clear conversation", key="lab_clear", use_container_width=True):
+            st.session_state["lab_messages"] = []
+            st.rerun()
 
     with col_chat:
-        st.markdown("<h4 style='font-weight: 700; color: #0F172A; margin-bottom: 0.75rem;'>AI Legal Assistant</h4>", unsafe_allow_html=True)
+        if not history:
+            st.markdown("""
+                <div style="text-align: center; padding: 3rem 0; min-height: 220px;">
+                    <span class="material-symbols-outlined" style="font-size: 48px; color: #CBD5E1; display: block; margin-bottom: 0.75rem;">forum</span>
+                    <h4 style="color: #475569; margin-bottom: 0.25rem;">Start a conversation</h4>
+                    <p style="color: #94A3B8; font-size: 0.85rem; max-width: 320px; margin: 0 auto;">Ask anything about Indian criminal law, or pick an example on the left.</p>
+                </div>
+            """, unsafe_allow_html=True)
 
-        with st.container():
-            if not st.session_state.chat_history:
-                st.markdown("""
-                    <div style="text-align: center; padding: 4rem 0; min-height: 300px;">
-                        <span class="material-symbols-outlined" style="font-size: 48px; color: #CBD5E1; display: block; margin-bottom: 0.75rem;">forum</span>
-                        <h4 style="color: #475569; margin-bottom: 0.25rem;">Start a Conversation</h4>
-                        <p style="color: #94A3B8; font-size: 0.82rem; max-width: 280px; margin: 0 auto;">Ask about IPC sections, BNS mappings, or legal precedents.</p>
-                    </div>
-                """, unsafe_allow_html=True)
-            else:
-                for msg in st.session_state.chat_history:
-                    if msg["role"] == "user":
-                        st.markdown(f"""
-                            <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
-                                <div style="background: #1E3A5F; color: #FFFFFF; border-radius: 14px 14px 4px 14px; padding: 0.85rem 1.15rem; max-width: 75%; font-size: 0.9rem; line-height: 1.6;">
-                                    {html.escape(msg['content'])}
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"""
-                            <div style="display: flex; justify-content: flex-start; align-items: flex-start; gap: 0.6rem; margin-bottom: 1rem;">
-                                <div style="display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; background: #EFF6FF; border-radius: 50%; flex-shrink: 0;">
-                                    <span class="material-symbols-outlined" style="font-size: 16px; color: #1E3A5F;">smart_toy</span>
-                                </div>
-                                <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 4px 14px 14px 14px; padding: 0.85rem 1.15rem; max-width: 75%; font-size: 0.9rem; line-height: 1.6; color: #334155;">
-                                    {chat_markup(msg['content'])}
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)
+        for n, msg in enumerate(history):
+            with st.chat_message(msg["role"], avatar="🧑‍🎓" if msg["role"] == "user" else "⚖️"):
+                # st.markdown escapes HTML by default, so user text cannot inject markup
+                st.markdown(msg["content"])
+                result = msg.get("result") or {}
+                if result.get("cases"):
+                    _render_case_cards(result["cases"], f"m{n}")
 
-        prompt = st.chat_input("Ask about IPC sections, BNS mappings, or legal concepts...")
+        prompt = st.chat_input("Ask about a section, a concept, or describe a case…")
+        prompt = prompt or st.session_state.pop("lab_pending", None)
         if prompt:
-            st.session_state['last_statute_query'] = prompt
-            st.session_state.chat_history.append({"role": "user", "content": prompt})
-            matches = lookup_statute(prompt, ipc_to_bns_map)
-            if matches:
-                if len(matches) == 1:
-                    ipc_key, bns_val = matches[0]
-                    response = f"**Match Found:**\n\nIPC Section **{ipc_key.title()}** → BNS Section **{bns_val}**\n\nThis mapping is part of the Bharatiya Nyaya Sanhita (BNS) framework."
-                else:
-                    lines = [f"• **{k.title()}** → **{v}**" for k, v in matches]
-                    match_str = "\n".join(lines)
-                    response = f"**Matches Found ({len(matches)}):**\n\n{match_str}\n\nThis mapping is part of the Bharatiya Nyaya Sanhita (BNS) framework."
-            else:
-                response = f"No exact IPC/BNS match found for '{prompt}'. Try entering a specific section number (e.g. 302) or a keyword (e.g. murder)."
-
-            st.session_state.chat_history.append({"role": "assistant", "content": response})
-
+            past_results = [m["result"] for m in history if m.get("result")]
+            with st.spinner("Searching statutes, concepts and past judgments..."):
+                result = bot.answer(prompt, past_results)
+            history.append({"role": "user", "content": prompt})
+            history.append({"role": "assistant", "content": result["text"], "result": result})
             if supabase:
                 try:
                     supabase.table("student_queries").insert({
                         "user_email": st.session_state.user_email,
                         "query_text": prompt,
-                        "ai_response": response
+                        "ai_response": result["text"][:4000],
                     }).execute()
-                except Exception:
-                    pass
+                except Exception as log_err:
+                    logger.warning(f"Could not save student query: {log_err}")
             st.rerun()
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2125,6 +2109,7 @@ else:
             st.session_state.role = ""
             st.session_state.offline_demo = False
             st.session_state.chat_history = []
+            st.session_state.lab_messages = []
             st.session_state.predictions = {}
             st.query_params.clear()
             st.rerun()

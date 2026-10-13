@@ -77,12 +77,40 @@ After creating the virtual environment once (step 2 below), double-click [run_de
 
 ---
 
+## Legal Study Assistant (chatbot)
+
+The **IPC-BNS Lab** page is a study chatbot for law students. It is free and works offline: it retrieves from the project's own knowledge base and composes a cited answer, so it does not invent sections or cases.
+
+| It answers | From | Example |
+| --- | --- | --- |
+| IPC ↔ BNS sections, both directions, including deleted and new sections | [`knowledge/statutes.json`](knowledge/statutes.json): 543 rows parsed from the official correspondence table (`Documents/BNS_IPC_Comparative.pdf`) by [`scripts/build_statutes.py`](scripts/build_statutes.py) | "what is 302 IPC in BNS?", "BNS 103 is which IPC section?" |
+| Legal concepts, with old and new provisions and a source link | [`knowledge/concepts.json`](knowledge/concepts.json): 58 entries | "explain anticipatory bail", "murder vs culpable homicide" |
+| Similar past judgments, with their real verdict and the court's final order | 124 judgments (`eval_harness/benchmark_cohort.csv` + `Model Test pdfs/`) | "conviction based only on circumstantial evidence" |
+
+It also handles greetings, follow-ups ("what about 307?", "tell me more about the first case"), typos, off-topic questions, and requests for help breaking the law (refused, with lawful options).
+
+**How it works:** [`legal_assistant.py`](legal_assistant.py) routes the question by intent, searches with TF-IDF (scikit-learn), and formats the answer. It has no Streamlit dependency, so you can try it in a terminal with `python legal_assistant.py`.
+
+**Add more judgments:** `python scripts/add_cases.py --csv <dataset.csv> --limit 1500` or `--pdf-dir <folder>`. This writes `knowledge/extra_cases.csv`, which is loaded on the next start. Keep `--limit` modest on 8 GB laptops.
+
+**Optional: more natural wording with a free model.** Add these to `.streamlit/secrets.toml`. The model only rewrites the retrieved facts, and the bot falls back to offline answers if the model is unreachable.
+
+```toml
+# Local and free: install Ollama from https://ollama.com, then run:  ollama pull qwen2.5:1.5b   (~1 GB download, ~2 GB RAM)
+LLM_BASE_URL = "http://localhost:11434/v1"
+LLM_MODEL = "qwen2.5:1.5b"
+# Or any OpenAI-compatible free-tier API: also set LLM_API_KEY. Questions are then sent to that provider.
+```
+
+---
+
 ## Testing
 
 ```bash
-python -m pytest tests -q   # pipeline tests; model tests are skipped if ./models is missing
+python -m pytest tests -q   # pipeline + chatbot tests; model tests are skipped if ./models is missing
 python check_setup.py       # demo-readiness check: venv, packages, RAM, models, a test prediction, Supabase
 python check_setup.py --shap   # also times one SHAP explanation
+python eval_harness/chatbot_eval.py   # chatbot harness: 67 positive and negative questions, scores intent, content and case retrieval
 ```
 
 ---
