@@ -12,3 +12,6 @@ design_ref/
 .pytest_cache/
 .index_cache.joblib
 *.joblib.*.tmp
+
+# Security event log written by app.py (OWASP A09)
+logs/

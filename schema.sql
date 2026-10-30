@@ -200,8 +200,12 @@ create policy statutory_bridge_admin_write on public.statutory_bridge for all to
     using (public.is_admin()) with check (public.is_admin());
 
 -- role_requests: users create and read their own pending requests; Admins review.
+-- The email must be the signed-in user's own (otherwise an Admin could be shown "approve
+-- victim@x" while the role change goes to the attacker's account).
 create policy role_requests_insert on public.role_requests for insert to authenticated
-    with check (user_id = auth.uid() and status = 'pending' and reviewed_at is null and reviewed_by is null);
+    with check (user_id = auth.uid()
+                and lower(user_email) = lower(auth.jwt() ->> 'email')
+                and status = 'pending' and reviewed_at is null and reviewed_by is null);
 create policy role_requests_select on public.role_requests for select to authenticated
     using (user_id = auth.uid() or public.is_admin());
 create policy role_requests_admin_update on public.role_requests for update to authenticated
@@ -217,6 +221,24 @@ create index if not exists idx_student_queries_user_id    on public.student_quer
 create index if not exists idx_role_requests_user_id      on public.role_requests(user_id);
 create index if not exists idx_role_requests_status       on public.role_requests(status);
 create index if not exists idx_role_requests_requested_at on public.role_requests(requested_at desc);
+-- One open role request per user.
+create unique index if not exists uq_role_requests_one_pending on public.role_requests(user_id) where status = 'pending';
+
+-- ─── Security hardening (OWASP review, Oct 2026) ───────────────────────
+
+-- Cap stored chatbot text.
+alter table public.student_queries drop constraint if exists student_queries_length_check;
+alter table public.student_queries add constraint student_queries_length_check
+    check (char_length(coalesce(query_text, '')) <= 2000 and char_length(coalesce(ai_response, '')) <= 8000);
+
+-- SECURITY DEFINER functions are not public API: trigger functions cannot be called at all,
+-- and the role helpers are only for signed-in users (RLS policies need them).
+revoke execute on function public.handle_new_user()   from public, anon, authenticated;
+revoke execute on function public.check_role_update() from public, anon, authenticated;
+revoke execute on function public.current_app_role()  from public, anon;
+revoke execute on function public.is_admin()          from public, anon;
+revoke execute on function public.is_reviewer()       from public, anon;
+grant  execute on function public.current_app_role(), public.is_admin(), public.is_reviewer() to authenticated;
 
 -- Back-fill profiles for users who signed up before the trigger existed.
 insert into public.profiles (user_id, email, role)

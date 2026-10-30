@@ -12,6 +12,85 @@ from supabase import create_client, Client
 
 logger = logging.getLogger(__name__)
 
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  SECURITY HELPERS (OWASP Top 10 hardening)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def _security_logger():
+    """A09: security events (sign-in, lockout, role changes) go to the terminal AND logs/security.log."""
+    log = logging.getLogger("legal_ai_hub.security")
+    if not log.handlers:
+        log.setLevel(logging.INFO)
+        fmt = logging.Formatter("%(asctime)s SECURITY %(levelname)s %(message)s")
+        stream = logging.StreamHandler()
+        stream.setFormatter(fmt)
+        log.addHandler(stream)
+        try:
+            from logging.handlers import RotatingFileHandler
+            os.makedirs("logs", exist_ok=True)
+            fh = RotatingFileHandler(os.path.join("logs", "security.log"), maxBytes=1_000_000,
+                                     backupCount=3, encoding="utf-8")
+            fh.setFormatter(fmt)
+            log.addHandler(fh)
+        except OSError:
+            pass   # read-only disk: terminal logging still works
+        log.propagate = False
+    return log
+
+
+SEC = _security_logger()
+
+VALID_ROLES = ("Student", "Lawyer", "Judge", "Admin")
+MAX_LOGIN_ATTEMPTS = 5          # A07: failed sign-ins allowed per session ...
+LOGIN_LOCK_SECONDS = 60         # ... before a short lock-out
+MIN_PASSWORD_LENGTH = 8         # A07: new accounts need at least 8 chars with a letter and a digit
+ROLE_REFRESH_SECONDS = 60       # A01: re-read the user's role from the database at least once a minute
+MAX_PROMPT_CHARS = 1000         # A04: cap user input that is searched / stored
+MAX_SEARCH_CHARS = 100
+MAX_TAG_CHARS = 200
+EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,255}\.[^@\s]{2,}$")
+
+
+def esc(value):
+    """A03: HTML-escape any value before it goes into st.markdown(..., unsafe_allow_html=True)."""
+    return html.escape("" if value is None else str(value))
+
+
+def safe_role(role):
+    """Only the four known roles are trusted; anything else is treated as Student."""
+    return role if role in VALID_ROLES else "Student"
+
+
+def password_problem(password):
+    """Return a message if a NEW password is too weak, else None."""
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return f"Password must be at least {MIN_PASSWORD_LENGTH} characters."
+    if not re.search(r"[A-Za-z]", password) or not re.search(r"\d", password):
+        return "Password must contain at least one letter and one number."
+    return None
+
+
+def login_lock_remaining():
+    """Seconds left on the sign-in lock-out for this browser session (0 = not locked)."""
+    until = st.session_state.get("login_locked_until", 0)
+    return max(0, int(until - time.time()))
+
+
+def record_login_failure(email):
+    n = st.session_state.get("login_failures", 0) + 1
+    st.session_state.login_failures = n
+    SEC.warning(f"sign-in failed email={email!r} attempt={n}")
+    if n >= MAX_LOGIN_ATTEMPTS:
+        st.session_state.login_locked_until = time.time() + LOGIN_LOCK_SECONDS
+        st.session_state.login_failures = 0
+        SEC.warning(f"sign-in locked for {LOGIN_LOCK_SECONDS}s after {MAX_LOGIN_ATTEMPTS} failures email={email!r}")
+
+
+def db_error(action, err):
+    """A05/A09: log the real error on the server, show the user a generic message only."""
+    logger.error(f"Database error while trying to {action}: {err}")
+    st.error(f"Could not {action}. Please try again later.")
+
 # Graceful fallbacks for optional dependencies.
 # torch / transformers / shap are imported LAZILY (on first use by the Case Predictor):
 # `import torch` alone takes 5-15 s on a laptop, and pages like the Lab never need it.
@@ -354,6 +433,26 @@ if "authenticated" not in st.session_state:
 # Roles allowed to see every user's records (all others see only their own).
 REVIEWER_ROLES = ("Admin", "Judge")
 
+
+def refresh_role():
+    """A01: the role is re-read from `profiles` at least once a minute, so a demotion or
+    approval by an Admin takes effect without waiting for the user to sign out."""
+    if not supabase or st.session_state.get("offline_demo") or not st.session_state.get("user_id"):
+        return
+    if time.time() - st.session_state.get("role_checked_at", 0) < ROLE_REFRESH_SECONDS:
+        return
+    try:
+        res = supabase.table("profiles").select("role").eq("user_id", st.session_state.user_id).execute()
+        new_role = safe_role(res.data[0].get("role")) if res.data else "Student"
+    except Exception as e:
+        logger.warning(f"Could not refresh role: {e}")
+        return
+    if new_role != st.session_state.get("role"):
+        SEC.info(f"role changed email={st.session_state.get('user_email')!r} "
+                 f"{st.session_state.get('role')} -> {new_role}")
+        st.session_state.role = new_role
+    st.session_state.role_checked_at = time.time()
+
 def get_history():
     if not supabase:
         return []
@@ -401,7 +500,9 @@ def _load_one(module):
             cfg.id2label = {i: f"LABEL_{i}" for i in range(head)}
             cfg.label2id = {v: k for k, v in cfg.id2label.items()}
             kwargs = {**kwargs, "config": cfg}
-    mdl = AutoModelForSequenceClassification.from_pretrained(src, **kwargs)
+    # A08: only load weights from .safetensors files. Pickle-based .bin checkpoints can run
+    # arbitrary code when loaded, so a tampered download could never execute anything.
+    mdl = AutoModelForSequenceClassification.from_pretrained(src, use_safetensors=True, **kwargs)
     mdl.eval()
     return tok, mdl
 
@@ -1103,15 +1204,23 @@ letter-spacing: 0.01em !important;
             st.markdown('<label class="chamber-label">DEMO ROLE</label>', unsafe_allow_html=True)
             role = st.radio("Select Role", ["Student", "Lawyer", "Judge", "Admin"], index=1, horizontal=True, label_visibility="collapsed", key="auth_role_selector")
 
-        email = st.text_input("Email Address", placeholder="name@firm.com")
-        password = st.text_input("Password", type="password", placeholder="Enter your password")
+        email = st.text_input("Email Address", placeholder="name@firm.com", max_chars=254).strip().lower()
+        password = st.text_input("Password", type="password", placeholder="Enter your password", max_chars=128)
 
         st.markdown("<div style='height: 0.25rem;'></div>", unsafe_allow_html=True)
 
-        if st.button("Sign In →", use_container_width=True):
+        locked = login_lock_remaining() if supabase else 0
+        if locked:
+            st.error(f"Too many failed sign-in attempts. Please wait {locked} seconds and try again.")
+
+        if st.button("Sign In →", use_container_width=True, disabled=bool(locked)):
             if supabase and (not email or not password):
                 st.warning("Please enter both email and password.")
             elif supabase:
+                # A07: one generic message for every failure, so the page never reveals
+                # whether an email is registered; the real reason goes to the server log.
+                generic = ("Sign-in failed. Check your email and password. "
+                           "If you just registered, confirm your email first.")
                 try:
                     res = supabase.auth.sign_in_with_password({"email": email, "password": password})
                     if res and res.user:
@@ -1121,20 +1230,24 @@ letter-spacing: 0.01em !important;
                             profile_res = supabase.table('profiles').select('role').eq('user_id', user_id).execute()
                             if profile_res.data and len(profile_res.data) > 0:
                                 fetched_role = profile_res.data[0].get('role')
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.warning(f"Could not read role at sign-in: {e}")
                         st.session_state.authenticated = True
                         st.session_state.user_id = user_id
-                        st.session_state.user_email = email
-                        if fetched_role:
-                            st.session_state.role = fetched_role
-                        else:
-                            st.session_state.role = "Student"
+                        # The verified email from Supabase, not the text typed in the box.
+                        st.session_state.user_email = (res.user.email or email).lower()
+                        st.session_state.role = safe_role(fetched_role)
+                        st.session_state.role_checked_at = time.time()
+                        st.session_state.login_failures = 0
+                        SEC.info(f"sign-in ok email={st.session_state.user_email!r} role={st.session_state.role}")
                         st.rerun()
                     else:
-                        st.error("Authentication failed. Invalid user credentials.")
+                        record_login_failure(email)
+                        st.error(generic)
                 except Exception as err:
-                    st.error(f"Sign in failed: {err}")
+                    logger.warning(f"Sign-in error: {err}")
+                    record_login_failure(email)
+                    st.error(generic)
             else:
                 # Offline demo: no credentials can be checked, so Admin is only available
                 # when explicitly enabled (ALLOW_OFFLINE_ADMIN_DEMO = true in secrets.toml).
@@ -1150,17 +1263,22 @@ letter-spacing: 0.01em !important;
                     st.rerun()
 
         if supabase and st.button("Create Account", use_container_width=True):
-            if email and password:
+            if not email or not password:
+                st.warning("Please enter email and password to register.")
+            elif not EMAIL_RE.match(email):
+                st.warning("Please enter a valid email address.")
+            elif password_problem(password):
+                st.warning(password_problem(password))
+            else:
                 try:
                     res = supabase.auth.sign_up({"email": email, "password": password})
-                    if res and res.user:
-                        st.success("Account created successfully as Student! Please sign in. (Role upgrades can be requested from your workspace).")
-                    else:
-                        st.error("Registration failed.")
+                    SEC.info(f"sign-up requested email={email!r} ok={bool(res and res.user)}")
                 except Exception as err:
-                    st.error(f"Registration failed: {err}")
-            else:
-                st.warning("Please enter email and password to register.")
+                    logger.warning(f"Sign-up error: {err}")
+                # A07: the same message whether or not the email already exists.
+                st.success("If this email can be registered, your Student account is ready. "
+                           "Check your inbox to confirm it, then sign in. "
+                           "Role upgrades can be requested from your workspace.")
 
     st.markdown('<div class="login-footer">Legal AI Hub • InLegalBERT</div>', unsafe_allow_html=True)
 
@@ -1325,7 +1443,8 @@ min-width: 100% !important;
         with f1:
             court_level = st.selectbox("Court Level", ["Supreme Court of India", "High Court", "District Court"])
         with f2:
-            statutory_tags = st.text_input("Statutory Tags (saved with the case)", placeholder="e.g., Section 302")
+            statutory_tags = st.text_input("Statutory Tags (saved with the case)", placeholder="e.g., Section 302",
+                                           max_chars=MAX_TAG_CHARS)
         # Opt-in: the reported benchmark numbers use the first-512-token path, so that stays the default.
         full_doc = st.checkbox("Analyse full document (sliding window, slower)", value=False, key="full_doc_mode")
     mode = "full" if full_doc else "first512"
@@ -1350,7 +1469,8 @@ min-width: 100% !important;
                 elif model_load_error == "transformers_unavailable":
                     st.warning("⚠️ Deep learning models (InLegalBERT) are unavailable: PyTorch or Transformers is not installed. Predictions are running in rule-based heuristic fallback mode.")
                 else:
-                    st.warning(f"⚠️ Deep learning models (InLegalBERT) are unavailable ({model_load_error}). Predictions are running in rule-based heuristic fallback mode.")
+                    logger.error(f"Model load error: {model_load_error}")
+                    st.warning("⚠️ Deep learning models (InLegalBERT) are unavailable (see the terminal log for details). Predictions are running in rule-based heuristic fallback mode.")
 
             file = st.file_uploader("Upload PDF or TXT file", type=["pdf", "txt"], label_visibility="collapsed")
 
@@ -1506,7 +1626,7 @@ min-width: 100% !important;
                                 "predicted_jurisdiction": p['category'],
                                 "ratio_decidendi": p['struct'].get('JUDGMENT', '')[:500],
                                 "relevant_sections_ipc": ", ".join(k for k, _ in p.get('statutes', [])),
-                                "key_issues": statutory_tags.strip() or None,
+                                "key_issues": statutory_tags.strip()[:MAX_TAG_CHARS] or None,
                                 "relevant_sections_bns": ", ".join(v for _, v in p.get('statutes', [])),
                                 "user_email": st.session_state.user_email,
                                 "case_category": p['category'],
@@ -1516,7 +1636,7 @@ min-width: 100% !important;
                             }).execute()
                             st.success("Case saved to Research Vault successfully.")
                         except Exception as e:
-                            st.error(f"Error saving: {e}")
+                            db_error("save the case to the vault", e)
                     else:
                         st.warning("Database offline — cannot save.")
             else:
@@ -1645,7 +1765,8 @@ def render_vault():
         return
 
     try:
-        search = st.text_input("Search the vault", placeholder="Case name, section (e.g. 302) or keyword", key="vault_search")
+        search = st.text_input("Search the vault", placeholder="Case name, section (e.g. 302) or keyword",
+                               key="vault_search", max_chars=MAX_SEARCH_CHARS)[:MAX_SEARCH_CHARS]
         vq = supabase.table("cases_vault").select("*")
         if st.session_state.get('role') not in REVIEWER_ROLES:
             vq = vq.eq("user_email", st.session_state.get('user_email', ''))
@@ -1684,7 +1805,7 @@ def render_vault():
                                 <div>
                                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
                                         <span class="badge badge-blue">{category}</span>
-                                        <span style="font-size: 0.72rem; color: #94A3B8;">{str(c.get('created_at',''))[:10]}</span>
+                                        <span style="font-size: 0.72rem; color: #94A3B8;">{esc(str(c.get('created_at',''))[:10])}</span>
                                     </div>
                                     <h4 style="font-size: 1.05rem; font-weight: 700; color: #0F172A; margin: 0 0 0.5rem 0; line-height: 1.35;">{clean_title}</h4>
                                     <p style="font-size: 0.8rem; color: #64748B; line-height: 1.6; margin-bottom: 1rem; height: 64px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;">{clean_summary}</p>
@@ -1696,7 +1817,7 @@ def render_vault():
                             </div>
                         """, unsafe_allow_html=True)
     except Exception as e:
-        st.error(f"Error loading vault: {e}")
+        db_error("load the vault", e)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  IPC-BNS LAB
@@ -1843,8 +1964,10 @@ def render_lab():
                 if result.get("cases"):
                     _render_case_cards(result["cases"], f"m{n}")
 
-        prompt = st.chat_input("Ask about a section, a concept, or describe a case…")
+        prompt = st.chat_input("Ask about a section, a concept, or describe a case…", max_chars=MAX_PROMPT_CHARS)
         prompt = prompt or clicked_example or st.session_state.pop("lab_pending", None)
+        if prompt:
+            prompt = prompt[:MAX_PROMPT_CHARS]   # A04: also enforced server-side
         if prompt and _is_duplicate_lab_prompt(prompt, history):
             prompt = None
         if prompt:
@@ -1886,7 +2009,7 @@ def render_history():
     try:
         hist = get_history()
     except Exception as e:
-        st.error(f"Failed to load case history: {e}")
+        db_error("load the case history", e)
         hist = []
 
     if hist:
@@ -1931,6 +2054,12 @@ def render_role_requests():
         </div>
     """, unsafe_allow_html=True)
 
+    # A01: checked again here (not only in the menu), so this page can never render for a non-Admin.
+    if st.session_state.get('role') != 'Admin':
+        SEC.warning(f"blocked non-admin from role requests email={st.session_state.get('user_email')!r}")
+        st.error("Only Administrators can view this page.")
+        return
+
     if not supabase:
         st.warning("Database offline. Cannot manage role requests.")
         return
@@ -1938,7 +2067,7 @@ def render_role_requests():
     try:
         reqs = supabase.table('role_requests').select('*').order('requested_at', desc=True).execute().data
     except Exception as e:
-        st.error(f"Error fetching role requests: {e}")
+        db_error("load the role requests", e)
         return
 
     pending = [r for r in reqs if r.get('status') == 'pending']
@@ -1975,17 +2104,18 @@ def render_role_requests():
                 req_r = r.get('requested_role', 'Lawyer')
                 r_date = str(r.get('requested_at', ''))[:16].replace('T', ' ')
 
+                # A03: every value here comes from a row the requesting user wrote, so all are escaped.
                 st.markdown(f"""
                     <div class="pro-card" style="margin-bottom: 1rem;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <div>
-                                <h4 style="font-size: 1.05rem; font-weight: 700; color: #0F172A; margin: 0 0 0.35rem 0;">{html.escape(str(u_email))}</h4>
+                                <h4 style="font-size: 1.05rem; font-weight: 700; color: #0F172A; margin: 0 0 0.35rem 0;">{esc(u_email)}</h4>
                                 <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; color: #64748B;">
-                                    <span>Current: <strong style="color: #475569;">{curr_r}</strong></span>
+                                    <span>Current: <strong style="color: #475569;">{esc(curr_r)}</strong></span>
                                     <span>➔</span>
-                                    <span>Requested: <strong style="color: #1E40AF;">{req_r}</strong></span>
+                                    <span>Requested: <strong style="color: #1E40AF;">{esc(req_r)}</strong></span>
                                     <span>•</span>
-                                    <span>{r_date}</span>
+                                    <span>{esc(r_date)}</span>
                                 </div>
                             </div>
                         </div>
@@ -1994,24 +2124,27 @@ def render_role_requests():
 
                 col_appr, col_rej, _ = st.columns([1, 1, 3], gap="small")
                 with col_appr:
-                    if st.button("✅ Approve", key=f"appr_{r_id}", use_container_width=True):
+                    if st.button("✅ Approve", key=f"appr_{r_id}", use_container_width=True,
+                                 disabled=req_r not in VALID_ROLES or not u_id):
                         try:
-                            # 1. Update role_requests table
-                            supabase.table('role_requests').update({
+                            # 1. Close the request (only if it is still pending)
+                            done = supabase.table('role_requests').update({
                                 "status": "approved",
                                 "reviewed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                                 "reviewed_by": st.session_state.user_email
-                            }).eq('id', r_id).execute()
+                            }).eq('id', r_id).eq('status', 'pending').execute()
 
-                            # 2. Elevate user role in profiles table
-                            supabase.table('profiles').update({
-                                "role": req_r
-                            }).eq('user_id', u_id).execute()
-
-                            st.success(f"Approved {u_email} as {req_r}!")
+                            # 2. Elevate the role of the user who made the request
+                            if done.data:
+                                supabase.table('profiles').update({
+                                    "role": req_r
+                                }).eq('user_id', u_id).execute()
+                                SEC.info(f"role request approved by={st.session_state.user_email!r} "
+                                         f"user_id={u_id} email={u_email!r} new_role={req_r}")
+                                st.success(f"Approved {u_email} as {req_r}!")
                             st.rerun()
                         except Exception as act_err:
-                            st.error(f"Approval failed: {act_err}")
+                            db_error("approve the request", act_err)
 
                 with col_rej:
                     if st.button("❌ Reject", key=f"rej_{r_id}", use_container_width=True):
@@ -2020,11 +2153,13 @@ def render_role_requests():
                                 "status": "rejected",
                                 "reviewed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                                 "reviewed_by": st.session_state.user_email
-                            }).eq('id', r_id).execute()
+                            }).eq('id', r_id).eq('status', 'pending').execute()
+                            SEC.info(f"role request rejected by={st.session_state.user_email!r} "
+                                     f"user_id={u_id} email={u_email!r} requested={req_r}")
                             st.info(f"Rejected request for {u_email}.")
                             st.rerun()
                         except Exception as act_err:
-                            st.error(f"Rejection failed: {act_err}")
+                            db_error("reject the request", act_err)
 
     with tab_history:
         if not resolved:
@@ -2049,11 +2184,12 @@ def render_role_requests():
 if not st.session_state.get('authenticated', False):
     render_auth()
 else:
+    refresh_role()
     # Clean white sidebar
     with st.sidebar:
         user_email = st.session_state.get('user_email', '')
-        user_role = st.session_state.get('role', 'Student')
-        user_initial = (user_email[0].upper()) if user_email else "U"
+        user_role = safe_role(st.session_state.get('role', 'Student'))
+        user_initial = esc(user_email[0].upper()) if user_email else "U"
 
         st.markdown("""
             <div style="padding: 1.25rem 0.5rem 1rem 0.5rem; display: flex; align-items: center; gap: 0.75rem; border-bottom: 1px solid #E5EEFF; margin-bottom: 1rem;">
@@ -2109,7 +2245,7 @@ else:
                 </div>
                 <div style="display: flex; flex-direction: column; min-width: 0; flex: 1;">
                     <span style="font-weight: 600; color: #041534; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{html.escape(user_email)}</span>
-                    <span style="font-size: 11px; color: #45464E; font-weight: 500;">{user_role}</span>
+                    <span style="font-size: 11px; color: #45464E; font-weight: 500;">{esc(user_role)}</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -2162,12 +2298,15 @@ else:
                                     "requested_role": req_role,
                                     "status": "pending"
                                 }).execute()
+                                SEC.info(f"role request submitted email={st.session_state.user_email!r} "
+                                         f"from={user_role} to={req_role}")
                                 st.success(f"Request for {req_role} submitted! An Administrator will review it.")
                                 st.rerun()
                         except Exception as req_err:
-                            st.error(f"Failed to submit request: {req_err}")
+                            db_error("submit the request", req_err)
 
         if st.button("Sign Out", use_container_width=True):
+            SEC.info(f"sign-out email={st.session_state.get('user_email')!r}")
             if supabase is not None:
                 try:
                     supabase.auth.sign_out()
@@ -2181,6 +2320,8 @@ else:
             st.session_state.chat_history = []
             st.session_state.lab_messages = []
             st.session_state.predictions = {}
+            st.session_state.role_checked_at = 0
+            st.session_state.pop("sb_client", None)   # drop the signed-in database client entirely
             st.query_params.clear()
             st.rerun()
 

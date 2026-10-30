@@ -114,3 +114,19 @@ Goal: a free, offline chatbot that answers law-student questions (sections, conc
 - [ ] Optional: replace `models/Module_C/Final/config.json` with the one from Drive `Module_C_Model/Final/` (correct 2-label config; removes the startup warning)
 - [ ] After the demo: use the trainer_state numbers above (not 85.2%) in the paper
 
+
+## 9. OWASP Top 10 security review (30 Oct 2026)
+
+Full report: `SECURITY_REVIEW.md`. 14 issues found, 12 fixed, 2 need a dashboard setting.
+
+- [x] A01: role requests can no longer show someone else's email (live DB rule); role re-checked every 60 s; Admin page checks the role itself
+- [x] A03: stored XSS on the Admin page fixed (values escaped + DB only allows real role names)
+- [x] A04: input length caps; one pending role request per user
+- [x] A05: no stack traces or raw errors shown to visitors; anonymous users can no longer call database functions
+- [x] A06: minimum package versions raised above known CVEs (pip-audit: 0 known issues)
+- [x] A07: sign-in lock-out after 5 failures, generic error messages, stronger passwords for new accounts
+- [x] A08: models load only from `.safetensors`
+- [x] A09: security events logged to `logs/security.log`
+- [x] `security_hardening.sql` applied to the live Supabase project; 11 new tests (63 total pass)
+- [ ] Your laptop: `git pull`, then `pip install -U -r requirements.txt` (upgrades streamlit / torch / transformers)
+- [ ] Supabase dashboard: turn on **Leaked password protection** and set **minimum password length = 8** (Authentication settings)

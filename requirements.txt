@@ -1,11 +1,13 @@
 # Install with `pip install -r requirements.txt` inside the venv; for CPU-only torch on Windows the default PyPI wheel is fine.
+# Minimum versions are set above known security fixes (OWASP A06; checked with pip-audit, Oct 2026).
+# Re-check any time with:  pip install pip-audit && pip-audit -r requirements.txt
 
 # Web UI
-streamlit>=1.40,<2
+streamlit>=1.54,<2
 
 # Models (Module B / Module C classifiers)
-torch>=2.2,<3
-transformers>=4.40,<6
+torch>=2.13,<3
+transformers>=5.10,<6
 
 # Explainability ("AI Decision Drivers")
 shap>=0.45,<1
@@ -22,7 +24,7 @@ pandas>=2.2,<4
 numpy>=1.26,<3
 
 # Evaluation harness metrics (eval_harness/)
-scikit-learn>=1.4,<2
+scikit-learn>=1.5,<2
 
 # Optional: free-RAM check in check_setup.py
 psutil>=5.9,<8
