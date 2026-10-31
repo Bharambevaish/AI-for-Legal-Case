@@ -17,7 +17,7 @@ Crucially, it breaks the "Black Box" of Deep Learning by integrating **Explainab
 
 ## 🤗 Models on Hugging Face
 To enable seamless team collaboration and bypass GitHub storage limits, our fine-tuned models are hosted on Hugging Face:
-* **Model Repository:** [Nick1027/legal-case-outcome-predictor](https://huggingface.co/Nick1027/legal-case-outcome-predictor)
+* **Model Repository:** [vaishnavi1011/legal-case-outcome-predictor](https://huggingface.co/vaishnavi1011/legal-case-outcome-predictor)
 
 The system is configured to automatically pull these weights during the first run.
 
@@ -74,7 +74,7 @@ Guided by: Dr. Shefali Sonavane
 
 Institution: Department of Information Technology, Walchand College of Engineering, Sangli (Academic year 2026–27)
 
-Acknowledgment: the fine-tuned InLegalBERT checkpoints (Nick1027/legal-case-outcome-predictor) come from earlier work by Nikhil Raghuwanshi and team; InLegalBERT itself is by law-ai.
+Acknowledgment: the fine-tuned InLegalBERT checkpoints were trained by Nikhil Raghuwanshi and team (original repo: [Nick1027/legal-case-outcome-predictor](https://huggingface.co/Nick1027/legal-case-outcome-predictor)) and are mirrored at vaishnavi1011/legal-case-outcome-predictor with their permission; InLegalBERT itself is by law-ai.
 
 🔮 Future Scope
 BNS Translation: Transitioning from IPC to Bharatiya Nyaya Sanhita (BNS).

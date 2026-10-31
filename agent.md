@@ -84,7 +84,7 @@ Realistic_LJP/
 | **Language** | Python | `3.10+` | Core development runtime |
 | **Deep Learning** | PyTorch & Transformers | `torch>=2.2.0`, `transformers>=4.38.0` | Model execution, tensor management, classification heads |
 | **Foundation LLM** | `law-ai/InLegalBERT` | Hugging Face Hub | Domain-adapted BERT pre-trained on Indian Supreme Court judgments |
-| **Remote Model Hub** | Hugging Face Model Hub | `Nick1027/legal-case-outcome-predictor` | Cloud backup of Module B & C checkpoints |
+| **Remote Model Hub** | Hugging Face Model Hub | `vaishnavi1011/legal-case-outcome-predictor` | Cloud backup of Module B & C checkpoints |
 | **Document Parser**| PyMuPDF (`fitz`) | `>=1.23.21` | High-speed PDF stream parsing and plain-text extraction |
 | **Database & Auth**| Supabase Cloud | `supabase>=2.0.0` | PostgreSQL hosting, JWT-based user authentication, Row-Level Security |
 | **Data Handling**  | Pandas & NumPy | `pandas>=2.2.0`, `numpy>=1.26.0` | Tabular data processing for audit logs & metrics |
@@ -374,7 +374,7 @@ Access the application at `http://localhost:8501`.
    - *Symptom*: `Exception: Can't load tokenizer for 'law-ai/InLegalBERT'`.
    - *Fix*: Always verify `use_fast=False` in `AutoTokenizer.from_pretrained()`.
 2. **Missing Local Model Weights**:
-   - If `./models/Module_B/Final` or `./models/Module_C/Final` are missing, download checkpoints directly from the remote Hugging Face repository: [Nick1027/legal-case-outcome-predictor](https://huggingface.co/Nick1027/legal-case-outcome-predictor).
+   - If `./models/Module_B/Final` or `./models/Module_C/Final` are missing, download checkpoints directly from the remote Hugging Face repository: [vaishnavi1011/legal-case-outcome-predictor](https://huggingface.co/vaishnavi1011/legal-case-outcome-predictor).
 3. **Database Connectivity**:
    - All Supabase calls in `app.py` are wrapped in defensive `try...except` blocks. If Supabase is unreachable, the system degrades gracefully without crashing.
 4. **Modifying Navigation & Roles**:
