@@ -136,9 +136,10 @@ The benchmark cohort may include cases seen during training (no train/test split
 
 ## Team & acknowledgments
 
-- **Developed by:** Nikhil Raghuwanshi, Shital Kalekar, Shraddha Dhanwate, Amay Lohar
-- **Guided by:** Prof. Priyanka Patil
-- **Institution:** Dept. of CSE (Artificial Intelligence), Nutan College of Engineering and Research, Pune
+- **Developed by (Group F, Project IV):** Ankita Kamble, Vaishnavi Bharambe, Shrutika Pagare
+- **Guided by:** Dr. Shefali Sonavane
+- **Institution:** Department of Information Technology, Walchand College of Engineering, Sangli (Academic year 2026–27)
+- **Acknowledgment:** the fine-tuned InLegalBERT checkpoints (`Nick1027/legal-case-outcome-predictor`) come from earlier work by Nikhil Raghuwanshi and team; InLegalBERT itself is by [law-ai](https://huggingface.co/law-ai/InLegalBERT).
 
 ---
 
