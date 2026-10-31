@@ -88,7 +88,7 @@ Versions are the ranges pinned in `requirements.txt`.
 | **Language** | Python | `3.10` / `3.11` recommended | Core runtime (`check_setup.py` accepts 3.10-3.13) |
 | **Deep Learning** | PyTorch & Transformers | `torch>=2.2,<3`, `transformers>=4.40,<6` | Model execution and classification heads |
 | **Foundation Model** | `law-ai/InLegalBERT` | Hugging Face Hub | Domain-adapted BERT pre-trained on Indian court judgments |
-| **Remote Model Hub** | Hugging Face Model Hub | `Nick1027/legal-case-outcome-predictor` | Hosts the Module B & C checkpoints; used when `./models` is missing |
+| **Remote Model Hub** | Hugging Face Model Hub | `vaishnavi1011/legal-case-outcome-predictor` | Hosts the Module B & C checkpoints; used when `./models` is missing |
 | **Explainability** | SHAP | `shap>=0.45,<1` | "AI Decision Drivers" panel (Partition explainer, text masker) |
 | **Document Parser** | PyMuPDF (`pymupdf` / `fitz`) | `>=1.24,<2` | PDF text extraction |
 | **Database & Auth** | Supabase | `supabase>=2.0,<3`, `httpx` | PostgreSQL, email/password auth, row-level security |
@@ -164,7 +164,7 @@ def _load_one(module):
 
 - The **fast** tokenizer (`use_fast=True`) is required: the sliding-window mode and the SHAP panel use `return_overflowing_tokens` / `return_offsets_mapping`, which only fast tokenizers support.
 - Each module uses its own saved tokenizer; if that fails, the `law-ai/InLegalBERT` tokenizer is used.
-- If `./models/Module_X/Final/config.json` is missing, the module is downloaded from `Nick1027/legal-case-outcome-predictor` (needs internet).
+- If `./models/Module_X/Final/config.json` is missing, the module is downloaded from `vaishnavi1011/legal-case-outcome-predictor` (needs internet).
 - `load_models()` is wrapped in `@st.cache_resource` and returns `(t_b, m_b, t_c, m_c, model_load_error)`. The error is classified as `transformers_unavailable`, `files_missing`, `out_of_memory` (incl. Windows OS error 1455) or `other: ...`, and the Predictor shows a matching warning. `MODELS_READY` is true only when all four objects loaded.
 
 ### 4.5 Rule-Based Fallback
@@ -359,7 +359,7 @@ python eval_harness/run_eval.py # re-measure Module B / C metrics (needs eval_ha
 1. **Tokenizer errors**:
    - The app needs a **fast** tokenizer (`use_fast=True`) for sliding-window mode and SHAP. If a module's saved tokenizer fails to load, `_load_one()` falls back to the `law-ai/InLegalBERT` tokenizer (needs internet the first time). Do not switch to `use_fast=False`: `return_overflowing_tokens` and `return_offsets_mapping` would break.
 2. **Missing local model weights**:
-   - If `./models/Module_B/Final` or `./models/Module_C/Final` is missing, the app downloads the module from [Nick1027/legal-case-outcome-predictor](https://huggingface.co/Nick1027/legal-case-outcome-predictor). Offline and without weights, the Predictor runs the rule-based fallback (no confidence shown) and the SHAP panel is disabled. `check_setup.py` reports which case applies.
+   - If `./models/Module_B/Final` or `./models/Module_C/Final` is missing, the app downloads the module from [vaishnavi1011/legal-case-outcome-predictor](https://huggingface.co/vaishnavi1011/legal-case-outcome-predictor). Offline and without weights, the Predictor runs the rule-based fallback (no confidence shown) and the SHAP panel is disabled. `check_setup.py` reports which case applies.
 3. **Out of memory / Windows OS error 1455**:
    - Run inside the project `venv` and close other heavy apps; the models need about 1.5 GB of free RAM.
 4. **Database connectivity**:

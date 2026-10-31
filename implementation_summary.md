@@ -88,7 +88,7 @@ On Windows, `run_demo.bat` does the last two steps. Run `schema.sql` in the Supa
 
 ## Technical Stack
 - **Frontend:** Streamlit with custom CSS (white theme)
-- **Models:** InLegalBERT (`law-ai/InLegalBERT`) fine-tuned for jurisdiction and outcome; hosted at `Nick1027/legal-case-outcome-predictor`
+- **Models:** InLegalBERT (`law-ai/InLegalBERT`) fine-tuned for jurisdiction and outcome; hosted at `vaishnavi1011/legal-case-outcome-predictor`
 - **XAI:** SHAP (Partition explainer, text masker)
 - **PDF:** PyMuPDF
 - **Database:** Supabase PostgreSQL with RLS

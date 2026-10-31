@@ -30,7 +30,7 @@ It is a decision-support estimate, not legal advice.
 
 ## Models on Hugging Face
 
-The fine-tuned checkpoints are hosted at [Nick1027/legal-case-outcome-predictor](https://huggingface.co/Nick1027/legal-case-outcome-predictor) (subfolders `Module_B` and `Module_C`). The app loads them from `./models/Module_B/Final` and `./models/Module_C/Final`; if a local copy is missing it downloads it from Hugging Face on first run (needs internet). The `models/` folder is gitignored.
+The fine-tuned checkpoints are hosted at [vaishnavi1011/legal-case-outcome-predictor](https://huggingface.co/vaishnavi1011/legal-case-outcome-predictor) (subfolders `Module_B` and `Module_C`). The app loads them from `./models/Module_B/Final` and `./models/Module_C/Final`; if a local copy is missing it downloads it from Hugging Face on first run (needs internet). The `models/` folder is gitignored.
 
 ---
 
@@ -139,7 +139,7 @@ The benchmark cohort may include cases seen during training (no train/test split
 - **Developed by (Group F, Project IV):** Ankita Kamble, Vaishnavi Bharambe, Shrutika Pagare
 - **Guided by:** Dr. Shefali Sonavane
 - **Institution:** Department of Information Technology, Walchand College of Engineering, Sangli (Academic year 2026–27)
-- **Acknowledgment:** the fine-tuned InLegalBERT checkpoints (`Nick1027/legal-case-outcome-predictor`) come from earlier work by Nikhil Raghuwanshi and team; InLegalBERT itself is by [law-ai](https://huggingface.co/law-ai/InLegalBERT).
+- **Acknowledgment:** the fine-tuned InLegalBERT checkpoints were trained by Nikhil Raghuwanshi and team (original repo: [Nick1027/legal-case-outcome-predictor](https://huggingface.co/Nick1027/legal-case-outcome-predictor)) and are mirrored at `vaishnavi1011/legal-case-outcome-predictor` with their permission; InLegalBERT itself is by [law-ai](https://huggingface.co/law-ai/InLegalBERT).
 
 ---
 

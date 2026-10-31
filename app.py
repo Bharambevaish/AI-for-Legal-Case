@@ -469,7 +469,7 @@ def get_history():
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  AI INFERENCE ENGINE
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-HF_MODEL_REPO = "Nick1027/legal-case-outcome-predictor"
+HF_MODEL_REPO = "vaishnavi1011/legal-case-outcome-predictor"
 LOCAL_MODEL_DIRS = {"B": "./models/Module_B/Final", "C": "./models/Module_C/Final"}
 JURISDICTION_LABELS = {0: "Civil Law", 1: "Criminal Law", 2: "Constitutional Law"}
 OUTCOME_LABELS = {0: "Dismissed / Rejected", 1: "Allowed / Accepted"}
