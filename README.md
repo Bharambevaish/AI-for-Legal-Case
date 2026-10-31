@@ -59,9 +59,13 @@ Click Generate AI Decision Drivers to view the SHAP explainability plot.
 📊 Performance Metrics
 Model: Fine-tuned InLegalBERT
 
-Accuracy: 85.2% | Precision: 84.1% | F1-Score: 83.7%
+Validation results from training (3 epochs):
 
-(Note: Outperforms Baseline TF-IDF + SVM which achieved only 62.0% accuracy).
+Case type (Civil / Criminal / Constitutional): Accuracy 89.7% | F1-Score 0.895
+
+Case outcome (Allowed / Dismissed): Accuracy 71.6% | F1-Score 0.764
+
+On a separate 120-case benchmark of Supreme Court judgments: case type 76.7% accuracy, outcome 67.5% accuracy.
 
 👨‍💻 Team & Acknowledgments
 Developed by (Group F, Project IV): Ankita Kamble, Vaishnavi Bharambe, Shrutika Pagare
