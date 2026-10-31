@@ -64,11 +64,13 @@ Accuracy: 85.2% | Precision: 84.1% | F1-Score: 83.7%
 (Note: Outperforms Baseline TF-IDF + SVM which achieved only 62.0% accuracy).
 
 👨‍💻 Team & Acknowledgments
-Developed by: Nikhil Raghuwanshi, Shital Kalekar, Shraddha Dhanwate, Amay Lohar
+Developed by (Group F, Project IV): Ankita Kamble, Vaishnavi Bharambe, Shrutika Pagare
 
-Guided by: Prof. Priyanka Patil
+Guided by: Dr. Shefali Sonavane
 
-Institution: Dept of CSE (Artificial Intelligence) - Nutan College of Engineering and Research, Pune.
+Institution: Department of Information Technology, Walchand College of Engineering, Sangli (Academic year 2026–27)
+
+Acknowledgment: the fine-tuned InLegalBERT checkpoints (Nick1027/legal-case-outcome-predictor) come from earlier work by Nikhil Raghuwanshi and team; InLegalBERT itself is by law-ai.
 
 🔮 Future Scope
 BNS Translation: Transitioning from IPC to Bharatiya Nyaya Sanhita (BNS).
@@ -81,7 +83,7 @@ Granular Predictions: Predicting sentence lengths and settlement amounts.
 
 ### 1. Clone the Repository
 ```bash
-git clone [https://github.com/Nikhil270703/AI-For-legal-case-outcome-prediction.git](https://github.com/Nikhil270703/AI-For-legal-case-outcome-prediction.git)
-cd AI-For-legal-case-outcome-prediction
+git clone https://github.com/Bharambevaish/AI-for-Legal-Case.git
+cd AI-for-Legal-Case
 
 
