@@ -1,20 +1,119 @@
 import streamlit as st
-import torch
+import os
 import json
 import re
 import html
+import hashlib
+import io
 import datetime
 import logging
+import time
 from supabase import create_client, Client
 
 logger = logging.getLogger(__name__)
 
-# Graceful fallbacks for optional dependencies
-try:
-    from transformers import AutoTokenizer, AutoModelForSequenceClassification
-    TRANSFORMERS_AVAILABLE = True
-except ImportError:
-    TRANSFORMERS_AVAILABLE = False
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  SECURITY HELPERS (OWASP Top 10 hardening)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def _security_logger():
+    """A09: security events (sign-in, lockout, role changes) go to the terminal AND logs/security.log."""
+    log = logging.getLogger("legal_ai_hub.security")
+    if not log.handlers:
+        log.setLevel(logging.INFO)
+        fmt = logging.Formatter("%(asctime)s SECURITY %(levelname)s %(message)s")
+        stream = logging.StreamHandler()
+        stream.setFormatter(fmt)
+        log.addHandler(stream)
+        try:
+            from logging.handlers import RotatingFileHandler
+            os.makedirs("logs", exist_ok=True)
+            fh = RotatingFileHandler(os.path.join("logs", "security.log"), maxBytes=1_000_000,
+                                     backupCount=3, encoding="utf-8")
+            fh.setFormatter(fmt)
+            log.addHandler(fh)
+        except OSError:
+            pass   # read-only disk: terminal logging still works
+        log.propagate = False
+    return log
+
+
+SEC = _security_logger()
+
+VALID_ROLES = ("Student", "Lawyer", "Judge", "Admin")
+MAX_LOGIN_ATTEMPTS = 5          # A07: failed sign-ins allowed per session ...
+LOGIN_LOCK_SECONDS = 60         # ... before a short lock-out
+MIN_PASSWORD_LENGTH = 8         # A07: new accounts need at least 8 chars with a letter and a digit
+ROLE_REFRESH_SECONDS = 60       # A01: re-read the user's role from the database at least once a minute
+MAX_PROMPT_CHARS = 1000         # A04: cap user input that is searched / stored
+MAX_SEARCH_CHARS = 100
+MAX_TAG_CHARS = 200
+EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,255}\.[^@\s]{2,}$")
+
+
+def esc(value):
+    """A03: HTML-escape any value before it goes into st.markdown(..., unsafe_allow_html=True)."""
+    return html.escape("" if value is None else str(value))
+
+
+def safe_role(role):
+    """Only the four known roles are trusted; anything else is treated as Student."""
+    return role if role in VALID_ROLES else "Student"
+
+
+def password_problem(password):
+    """Return a message if a NEW password is too weak, else None."""
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return f"Password must be at least {MIN_PASSWORD_LENGTH} characters."
+    if not re.search(r"[A-Za-z]", password) or not re.search(r"\d", password):
+        return "Password must contain at least one letter and one number."
+    return None
+
+
+def login_lock_remaining():
+    """Seconds left on the sign-in lock-out for this browser session (0 = not locked)."""
+    until = st.session_state.get("login_locked_until", 0)
+    return max(0, int(until - time.time()))
+
+
+def record_login_failure(email):
+    n = st.session_state.get("login_failures", 0) + 1
+    st.session_state.login_failures = n
+    SEC.warning(f"sign-in failed email={email!r} attempt={n}")
+    if n >= MAX_LOGIN_ATTEMPTS:
+        st.session_state.login_locked_until = time.time() + LOGIN_LOCK_SECONDS
+        st.session_state.login_failures = 0
+        SEC.warning(f"sign-in locked for {LOGIN_LOCK_SECONDS}s after {MAX_LOGIN_ATTEMPTS} failures email={email!r}")
+
+
+def db_error(action, err):
+    """A05/A09: log the real error on the server, show the user a generic message only."""
+    logger.error(f"Database error while trying to {action}: {err}")
+    st.error(f"Could not {action}. Please try again later.")
+
+# Graceful fallbacks for optional dependencies.
+# torch / transformers / shap are imported LAZILY (on first use by the Case Predictor):
+# `import torch` alone takes 5-15 s on a laptop, and pages like the Lab never need it.
+# A broken install (e.g. Windows OSError 1455 "paging file too small") then surfaces inside
+# load_models(), which reports it as a model-load error instead of crashing the app.
+import importlib
+import importlib.util
+
+
+class _LazyModule:
+    """Imports the named module on first attribute access (e.g. torch.no_grad)."""
+
+    def __init__(self, name):
+        self._name = name
+
+    def __getattr__(self, attr):
+        return getattr(importlib.import_module(self._name), attr)
+
+
+TRANSFORMERS_AVAILABLE = all(importlib.util.find_spec(m) is not None for m in ("torch", "transformers"))
+SHAP_AVAILABLE = importlib.util.find_spec("shap") is not None
+torch = _LazyModule("torch")
+shap = _LazyModule("shap")
 
 try:
     import pymupdf as fitz
@@ -25,12 +124,6 @@ except ImportError:
         PYMUPDF_AVAILABLE = True
     except ImportError:
         PYMUPDF_AVAILABLE = False
-
-try:
-    import spacy
-    SPACY_AVAILABLE = True
-except ImportError:
-    SPACY_AVAILABLE = False
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  PAGE CONFIG
@@ -143,7 +236,9 @@ color: #041534 !important;
 font-weight: 700 !important;
 }
 [data-testid="stSidebar"] div[role="radiogroup"] input[type="radio"],
-[data-testid="stSidebar"] div[role="radiogroup"] label > div:first-of-type {
+/* Hide only the radio circle: any div in the option that is not, does not contain, and is not inside
+   the label text. Works for both the old (baseweb) and new (react-aria) Streamlit radio markup. */
+[data-testid="stSidebar"] div[role="radiogroup"] label div:not([data-testid="stMarkdownContainer"]):not([data-testid="stMarkdownContainer"] *):not(:has([data-testid="stMarkdownContainer"])) {
 display: none !important;
 }
 [data-testid="stSidebar"] div.stButton > button {
@@ -282,8 +377,9 @@ inject_theme()
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  DATABASE & STATE MANAGEMENT
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-@st.cache_resource
+@st.cache_data(ttl=60, show_spinner=False)
 def _check_supabase_health(url: str, key: str) -> bool:
+    """Liveness probe, re-checked at most once a minute (not cached forever)."""
     try:
         import httpx
         probe = httpx.get(f"{url}/auth/v1/health", headers={"apikey": key}, timeout=3.5)
@@ -295,18 +391,24 @@ def _check_supabase_health(url: str, key: str) -> bool:
         logger.warning(f"Supabase liveness probe failed or timed out: {e}. Falling back to offline mode.")
         return False
 
+def _get_secret(name):
+    try:
+        return st.secrets.get(name)
+    except Exception:
+        return None
+
 def init_connection():
-    if "sb_client" in st.session_state:
+    # Re-use a live client for this browser session. A previous "offline" result
+    # is NOT cached, so the app reconnects once Supabase comes back.
+    if st.session_state.get("sb_client") is not None:
         return st.session_state["sb_client"]
 
-    url = st.secrets.get("SUPABASE_URL") if hasattr(st, "secrets") else None
-    key = st.secrets.get("SUPABASE_KEY") if hasattr(st, "secrets") else None
+    url = _get_secret("SUPABASE_URL")
+    key = _get_secret("SUPABASE_KEY")
     if not url or not key:
-        st.session_state["sb_client"] = None
         return None
 
     if not _check_supabase_health(url, key):
-        st.session_state["sb_client"] = None
         return None
 
     try:
@@ -315,21 +417,41 @@ def init_connection():
         return client
     except Exception as e:
         logger.warning(f"Supabase client initialization failed: {e}. Falling back to offline mode.")
-        st.session_state["sb_client"] = None
         return None
 
 supabase: Client = init_connection()
 
-try:
-    if "authenticated" not in st.session_state:
-        st.session_state.authenticated = False
-        st.session_state.user_id = ""
-        st.session_state.user_email = ""
-        st.session_state.role = ""
-        st.session_state.chat_history = []
-        st.session_state.predictions = {}
-except Exception:
-    pass
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+    st.session_state.user_id = ""
+    st.session_state.user_email = ""
+    st.session_state.role = ""
+    st.session_state.offline_demo = False
+    st.session_state.chat_history = []
+    st.session_state.predictions = {}
+
+# Roles allowed to see every user's records (all others see only their own).
+REVIEWER_ROLES = ("Admin", "Judge")
+
+
+def refresh_role():
+    """A01: the role is re-read from `profiles` at least once a minute, so a demotion or
+    approval by an Admin takes effect without waiting for the user to sign out."""
+    if not supabase or st.session_state.get("offline_demo") or not st.session_state.get("user_id"):
+        return
+    if time.time() - st.session_state.get("role_checked_at", 0) < ROLE_REFRESH_SECONDS:
+        return
+    try:
+        res = supabase.table("profiles").select("role").eq("user_id", st.session_state.user_id).execute()
+        new_role = safe_role(res.data[0].get("role")) if res.data else "Student"
+    except Exception as e:
+        logger.warning(f"Could not refresh role: {e}")
+        return
+    if new_role != st.session_state.get("role"):
+        SEC.info(f"role changed email={st.session_state.get('user_email')!r} "
+                 f"{st.session_state.get('role')} -> {new_role}")
+        st.session_state.role = new_role
+    st.session_state.role_checked_at = time.time()
 
 def get_history():
     if not supabase:
@@ -337,7 +459,7 @@ def get_history():
     try:
         user_role = st.session_state.get('role', 'Student')
         query = supabase.table("case_predictions").select("*")
-        if user_role != "Admin":
+        if user_role not in REVIEWER_ROLES:
             query = query.eq("user_email", st.session_state.get('user_email', ''))
         return query.order('created_at', desc=True).execute().data or []
     except Exception as e:
@@ -347,15 +469,69 @@ def get_history():
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  AI INFERENCE ENGINE
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-@st.cache_resource
+HF_MODEL_REPO = "vaishnavi1011/legal-case-outcome-predictor"
+LOCAL_MODEL_DIRS = {"B": "./models/Module_B/Final", "C": "./models/Module_C/Final"}
+JURISDICTION_LABELS = {0: "Civil Law", 1: "Criminal Law", 2: "Constitutional Law"}
+OUTCOME_LABELS = {0: "Dismissed / Rejected", 1: "Allowed / Accepted"}
+
+def _load_one(module):
+    """Load a fine-tuned module from ./models, or from Hugging Face if the local copy is missing."""
+    from transformers import AutoConfig, AutoTokenizer, AutoModelForSequenceClassification
+    local_dir = LOCAL_MODEL_DIRS[module]
+    if os.path.isfile(os.path.join(local_dir, "config.json")):
+        src, kwargs = local_dir, {}
+    else:
+        logger.warning(f"{local_dir} not found - downloading Module_{module} from {HF_MODEL_REPO}")
+        src, kwargs = HF_MODEL_REPO, {"subfolder": f"Module_{module}"}
+    try:
+        tok = AutoTokenizer.from_pretrained(src, use_fast=True, **kwargs)
+    except Exception as tok_err:
+        logger.warning(f"Module_{module} tokenizer failed ({tok_err}); using law-ai/InLegalBERT tokenizer")
+        tok = AutoTokenizer.from_pretrained("law-ai/InLegalBERT", use_fast=True)
+    # The saved weights decide how many output labels the model has. If config.json
+    # disagrees (e.g. Module_B's 3-label config copied into Module_C, whose head has
+    # 2 labels), transformers refuses to load, so the config is corrected on the fly.
+    head = _checkpoint_num_labels(src) if not kwargs else None
+    if head:
+        cfg = AutoConfig.from_pretrained(src)
+        if cfg.num_labels != head:
+            logger.warning(f"Module_{module}: config.json lists {cfg.num_labels} labels but the saved "
+                           f"weights have {head}; loading with {head} labels.")
+            cfg.id2label = {i: f"LABEL_{i}" for i in range(head)}
+            cfg.label2id = {v: k for k, v in cfg.id2label.items()}
+            kwargs = {**kwargs, "config": cfg}
+    # A08: only load weights from .safetensors files. Pickle-based .bin checkpoints can run
+    # arbitrary code when loaded, so a tampered download could never execute anything.
+    mdl = AutoModelForSequenceClassification.from_pretrained(src, use_safetensors=True, **kwargs)
+    mdl.eval()
+    return tok, mdl
+
+def _checkpoint_num_labels(model_dir):
+    """Number of rows in the saved classifier head (None if it can't be read)."""
+    try:
+        from safetensors import safe_open
+        path = os.path.join(model_dir, "model.safetensors")
+        if not os.path.isfile(path):
+            return None
+        with safe_open(path, framework="pt") as f:
+            for key in f.keys():
+                if key.endswith("classifier.weight"):
+                    return int(f.get_slice(key).get_shape()[0])
+    except Exception as e:
+        logger.warning(f"Could not read classifier size from {model_dir}: {e}")
+    return None
+
+@st.cache_resource(show_spinner="Loading InLegalBERT models...")
 def load_models():
     if not TRANSFORMERS_AVAILABLE:
         return None, None, None, None, "transformers_unavailable"
     try:
-        tokenizer_b = AutoTokenizer.from_pretrained("./models/Module_B/Final", use_fast=True)
-        model_b = AutoModelForSequenceClassification.from_pretrained("./models/Module_B/Final")
-        tokenizer_c = AutoTokenizer.from_pretrained("./models/Module_C/Final", use_fast=True)
-        model_c = AutoModelForSequenceClassification.from_pretrained("./models/Module_C/Final")
+        tokenizer_b, model_b = _load_one("B")
+        tokenizer_c, model_c = _load_one("C")
+        for name, mdl, labels in (("B", model_b, JURISDICTION_LABELS), ("C", model_c, OUTCOME_LABELS)):
+            if mdl.config.num_labels != len(labels):
+                logger.warning(f"Module_{name} has {mdl.config.num_labels} output labels but the app maps "
+                               f"{len(labels)}; probabilities are re-normalised over the mapped labels.")
         return tokenizer_b, model_b, tokenizer_c, model_c, None
     except Exception as e:
         logger.error(f"Failed to load AI models: {type(e).__name__}: {e}", exc_info=True)
@@ -368,46 +544,136 @@ def load_models():
             err_type = f"other: {type(e).__name__}: {e}"
         return None, None, None, None, err_type
 
-t_b, m_b, t_c, m_c, model_load_error = load_models()
+# Models are loaded LAZILY: only the Case Predictor page (and the SHAP explainer) need them.
+# Loading two InLegalBERT models takes ~20 s and ~1 GB RAM, so doing it at import time left
+# every page (Lab, Vault, History...) blank until it finished. load_models() is still
+# @st.cache_resource, so the first call loads once per server and later calls are instant.
+_MODEL_NAMES = ("t_b", "m_b", "t_c", "m_c", "model_load_error", "MODELS_READY")
 
-def extract_text_from_pdf(pdf_file):
+
+def get_models():
+    """(tokenizer_b, model_b, tokenizer_c, model_c, error) — loads on first call, then cached."""
+    return load_models()
+
+
+def models_ready():
+    """True when both models loaded. Triggers the (cached) load on first call."""
+    t_b, m_b, t_c, m_c, _ = get_models()
+    return all(x is not None for x in (t_b, m_b, t_c, m_c))
+
+
+def __getattr__(name):
+    """Backward compatibility for `app.t_b`, `app.MODELS_READY`, `from app import t_c` (PEP 562).
+
+    Resolved on first access instead of at import, so importing app stays cheap.
+    """
+    if name in _MODEL_NAMES:
+        t_b, m_b, t_c, m_c, err = get_models()
+        values = dict(t_b=t_b, m_b=m_b, t_c=t_c, m_c=m_c, model_load_error=err,
+                      MODELS_READY=all(x is not None for x in (t_b, m_b, t_c, m_c)))
+        return values[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+MAX_PDF_PAGES = 150          # judgments are rarely longer; protects memory on huge uploads
+MAX_DISPLAY_CHARS = 60_000   # keep the Full Text tab responsive
+
+def extract_text_from_pdf(pdf_file, max_pages=MAX_PDF_PAGES):
+    """Text of the first `max_pages` pages. Returns (text, total_pages)."""
     if not PYMUPDF_AVAILABLE:
-        return pdf_file.read().decode('utf-8', errors='ignore')
+        return pdf_file.read().decode('utf-8', errors='ignore'), None
     try:
         doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
-        return "\n".join([page.get_text("text") for page in doc])
-    except Exception:
-        return ""
+        total = doc.page_count
+        text = "\n".join(doc[i].get_text("text") for i in range(min(total, max_pages)))
+        return text, total
+    except Exception as e:
+        logger.warning(f"PDF text extraction failed: {e}")
+        return "", None
 
 def clean_legal_text(text):
-    pattern = r'(?i)^.*?(?:\bHEADNOTE\b[\s:\"\-]*|\n(?<!DATE OF )\bJUDGMENT\b[\s:\"\-]*|\n\s*ORDER\s*[\s:\"\-]*)(\n|$)'
+    # Drop everything before the first HEADNOTE / JUDGMENT / ORDER heading.
+    # "DATE OF JUDGMENT" lines are skipped (the look-behind now sits right before the word).
+    pattern = r'(?i)^.*?(?:\bHEADNOTE\b[\s:\"\-]*|\n[ \t]*(?<!DATE OF )\bJUDGMENT\b[\s:\"\-]*|\n\s*ORDER\s*[\s:\"\-]*)(\n|$)'
     cleaned = re.sub(pattern, '', text, count=1, flags=re.DOTALL)
     return cleaned.strip()
 
 @st.cache_data
 def load_bns_mapping():
     try:
-        with open("bns_mapping.json", 'r') as f:
+        with open("bns_mapping.json", 'r', encoding='utf-8') as f:
             return json.load(f)
     except Exception:
         return {
-            "302": "101 (Murder)",
-            "307": "109 (Attempt to Murder)",
-            "379": "303 (Theft)",
-            "420": "318 (Cheating)",
-            "376": "64 (Rape)",
-            "395": "310 (Dacoity)"
+            "section 302": "Section 103 of BNS (Murder)",
+            "section 307": "Section 109 of BNS (Attempt to Murder)",
+            "section 379": "Section 303(2) of BNS (Theft)",
+            "section 420": "Section 318(4) of BNS (Cheating)",
         }
 
 ipc_to_bns_map = load_bns_mapping()
 
+def _compile_statute_tools(mapping):
+    """Build ONE combined regex per direction so each citation is replaced exactly once.
+
+    The old version ran one re.sub per key, so text produced by an earlier
+    replacement (e.g. 'Section 147 of BNS') was matched again by a later IPC key
+    ('section 147') and corrupted. Keys without a section number ('ipc') are skipped.
+    """
+    fwd = {k.lower(): v for k, v in mapping.items() if re.search(r'\d', k)}
+    fwd_re = None
+    if fwd:
+        keys = sorted(fwd, key=len, reverse=True)
+        fwd_re = re.compile(r'\b(?:' + '|'.join(re.escape(k) for k in keys) + r')\b', re.IGNORECASE)
+
+    # Reverse map (BNS -> IPC) from the short-form keys ("section 302" -> "Section 103 of BNS").
+    rev = {}
+    for k, v in mapping.items():
+        km = re.fullmatch(r'section\s+(\w+)', k.strip().lower())
+        vm = re.match(r'(?i)section\s+([\w()]+)\s+of\s+bns', str(v).strip())
+        if km and vm:
+            rev.setdefault(vm.group(1).lower(), km.group(1).upper())
+    rev_re = None
+    if rev:
+        nums = sorted(rev, key=len, reverse=True)
+        rev_re = re.compile(
+            r'\bsection\s+(' + '|'.join(re.escape(n) for n in nums) + r')(?![\w(])\s*(?:of\s+(?:the\s+)?)?'
+            r'(?:BNS|Bharatiya\s+Nyaya\s+Sanhita(?:,?\s*2023)?)',
+            re.IGNORECASE)
+    return fwd, fwd_re, rev, rev_re
+
+_FWD_MAP, _FWD_RE, _REV_MAP, _REV_RE = _compile_statute_tools(ipc_to_bns_map)
+
 def translate_laws_to_bns(text):
-    if not ipc_to_bns_map:
+    """For readers: annotate IPC citations with their BNS equivalent, keeping the original words."""
+    if not _FWD_RE:
         return text
-    for ipc, bns in ipc_to_bns_map.items():
-        pattern = re.compile(r'\b' + re.escape(ipc) + r'\b', re.IGNORECASE)
-        text = pattern.sub(f" [{bns}] ", text)
-    return text
+    return _FWD_RE.sub(lambda m: f"{m.group(0)} [{_FWD_MAP[m.group(0).lower()]}]", text)
+
+def normalize_bns_to_ipc(text):
+    """For the models: InLegalBERT was fine-tuned on IPC-era judgments, so BNS citations
+    in new judgments are rewritten to their IPC equivalent before inference."""
+    if not _REV_RE:
+        return text
+    return _REV_RE.sub(lambda m: f"Section {_REV_MAP[m.group(1).lower()]} of the IPC", text)
+
+def find_statute_mappings(text, limit=25):
+    """List the distinct IPC citations found in the text with their BNS equivalents."""
+    if not _FWD_RE:
+        return []
+    seen, out = set(), []
+    for m in _FWD_RE.finditer(text):
+        k = m.group(0).lower()
+        bns = _FWD_MAP[k]
+        sec = re.search(r'section\s+\w+', k)
+        key = sec.group(0) if sec else k
+        if key not in seen:
+            seen.add(key)
+            out.append((key.title(), bns))
+        if len(out) >= limit:
+            break
+    return out
+
+_JUDGMENT_BOUNDARY = r'(?i)(?:final\s+judgment|operative\s+order|operative\s+part|in\s+the\s+result|for\s+the\s+(?:foregoing\s+)?reasons|conclusion)'
 
 def structure_aware_chunking(text):
     # Strip preliminary reporter metadata/citations if present at top
@@ -421,18 +687,25 @@ def structure_aware_chunking(text):
     if len(cleaned) < 200:
         cleaned = text
 
+    # Find where the court's own decision starts. Facts and arguments are only
+    # searched BEFORE that point, so the final order can never leak into model input.
+    m_judg = None
+    for m in re.finditer(_JUDGMENT_BOUNDARY, cleaned):
+        if m.start() >= len(cleaned) * 0.3:   # ignore early mentions such as a table of contents
+            m_judg = m
+            break
+    pre_decision = cleaned[:m_judg.start()] if m_judg else cleaned
+    judg_text = cleaned[m_judg.start():].strip() if m_judg else ""
+
     # Realistic section extraction for Indian court rulings
     fact_pattern = r'(?i)(?:brief\s+facts|factual\s+(?:matrix|aspects?|background)|facts?\s+of\s+the\s+case|facts?\s+in\s+brief|background\s+facts?|prosecution\s+(?:case|story)|case\s+of\s+the\s+(?:prosecution|appellant|plaintiff)|the\s+prosecution\s+(?:alleged|case)|(?:^|\n)\s*[0-9]{1,2}[\.\)]\s*(?:facts|factual|the\s+prosecution|the\s+case\s+in\s+brief))[\s\S]*?(?=\n\s*(?:[0-9]{1,2}[\.\)]\s*)?(?:submissions?|arguments?|contentions?|issues?|points?|consideration|findings?|judgment|order)|$)'
     arg_pattern = r'(?i)(?:submissions?|arguments?|contentions?|grounds?\s+of\s+appeal|(?:learned\s+)?counsel\s+(?:for\s+the\s+)?(?:appellant|respondent|parties)\s+(?:submitted|argued|contended)|it\s+was\s+(?:submitted|argued|contended)|(?:^|\n)\s*[0-9]{1,2}[\.\)]\s*(?:submissions?|arguments?|contentions?))[\s\S]*?(?=\n\s*(?:[0-9]{1,2}[\.\)]\s*)?(?:findings?|consideration|our\s+analysis|appreciation|judgment|order|conclusion|in\s+the\s+result)|$)'
-    judg_pattern = r'(?i)(?:final\s+judgment|operative\s+order|operative\s+part|in\s+the\s+result|for\s+the\s+(?:foregoing\s+)?reasons|conclusion)[\s\S]*'
 
-    m_facts = re.search(fact_pattern, cleaned)
-    m_args = re.search(arg_pattern, cleaned)
-    m_judg = re.search(judg_pattern, cleaned)
+    m_facts = re.search(fact_pattern, pre_decision)
+    m_args = re.search(arg_pattern, pre_decision)
 
     facts_text = m_facts.group(0).strip() if m_facts else ""
     args_text = m_args.group(0).strip() if m_args else ""
-    judg_text = m_judg.group(0).strip() if m_judg else ""
 
     ext = {
         "FACTS": facts_text,
@@ -442,35 +715,165 @@ def structure_aware_chunking(text):
 
     combined = (facts_text + " " + args_text).strip()
     # Fallback to substantive narrative after preliminary headers (up to 2500 chars)
-    crit = combined or cleaned[:2500].strip() or text[:2000]
+    crit = combined or pre_decision[:2500].strip() or text[:2000]
     return ext, crit
 
+def prepare_document(raw_text):
+    """Single preprocessing path shared by the app and eval_harness/run_eval.py.
+
+    Returns (clean_text, sections, model_input). Models see the original citations
+    (with any BNS citations mapped back to IPC); BNS annotations are for display only.
+    """
+    clean = clean_legal_text(raw_text)
+    sections, crit = structure_aware_chunking(clean)
+    return clean, sections, normalize_bns_to_ipc(crit)
+
+def _mapped_probs(logits, label_map):
+    """Softmax restricted to the labels the app knows about."""
+    idx = sorted(label_map)
+    return torch.softmax(logits[..., idx], dim=-1), idx
+
 def predict(text, t, m, label_map, task="jurisdiction"):
+    """Return (label, confidence %).
+
+    confidence is None when the rule-based fallback is used (it is not a probability),
+    and (None, None) is returned if model inference fails, so errors are never shown
+    as a real prediction.
+    """
     if t is None or m is None:
         text_lower = text.lower()
         if task == "jurisdiction":
-            if "constitutional" in text_lower or "article" in text_lower or "fundamental rights" in text_lower:
-                return label_map.get(2, "Constitutional Law"), 88.6
-            elif "murder" in text_lower or "ipc" in text_lower or "accused" in text_lower or "police" in text_lower:
-                return label_map.get(1, "Criminal Law"), 84.2
-            else:
-                return label_map.get(0, "Civil Law"), 79.1
-        else:  # task == "outcome"
-            if "dismissed" in text_lower or "rejected" in text_lower or "no merit" in text_lower or "conviction affirmed" in text_lower:
-                return label_map.get(0, "Dismissed / Rejected"), 82.5
-            else:
-                return label_map.get(1, "Allowed / Accepted"), 85.0
+            if re.search(r'\b(constitution(al)?|article\s+\d+|fundamental\s+rights?|writ)\b', text_lower):
+                return label_map.get(2, "Constitutional Law"), None
+            elif re.search(r'\b(murder|ipc|accused|police|fir|bail|convict(ed|ion)?)\b', text_lower):
+                return label_map.get(1, "Criminal Law"), None
+            return label_map.get(0, "Civil Law"), None
+        if re.search(r'\b(no\s+merit|devoid\s+of\s+merit|conviction\s+(?:is\s+)?(?:affirmed|upheld))\b', text_lower):
+            return label_map.get(0, "Dismissed / Rejected"), None
+        return label_map.get(1, "Allowed / Accepted"), None
 
     try:
-        inputs = t(text, padding="max_length", truncation=True, max_length=512, return_tensors="pt")
+        inputs = t(text, truncation=True, max_length=512, return_tensors="pt")
         with torch.no_grad():
             logits = m(**inputs).logits
-            probs = torch.nn.functional.softmax(logits, dim=-1)
-            pred_id = torch.argmax(logits, dim=-1).item()
-        return label_map[pred_id], probs[0][pred_id].item() * 100
+        probs, idx = _mapped_probs(logits, label_map)
+        best = int(torch.argmax(probs, dim=-1).item())
+        return label_map[idx[best]], probs[0][best].item() * 100
     except Exception as e:
-        logger.error(f"Inference error in task '{task}': {e}")
-        return label_map[0], 70.0
+        logger.error(f"Inference error in task '{task}': {e}", exc_info=True)
+        return None, None
+
+def predict_windows(text, t, m, label_map, task="jurisdiction", window=512, stride=128,
+                    max_windows=8, return_windows=False):
+    """Full-document variant of predict(): average the prediction over overlapping windows.
+
+    predict() only sees the first 512 tokens of the facts + arguments, so most of a long
+    judgment is ignored. Here the fast tokenizer splits the text into `window`-token chunks
+    that overlap by `stride` tokens (so no passage is only ever seen cut in half), the model
+    scores all chunks in one batch, and the per-window probabilities are averaged.
+
+    At most `max_windows` windows (the first N) are scored to keep CPU time bounded.
+    Returns (label, confidence %) exactly like predict(), or (label, confidence %, n_windows)
+    when return_windows=True. Falls back to predict() (heuristic path) if models are missing,
+    and returns (None, None[, 0]) on inference errors.
+    """
+    if t is None or m is None:
+        label, conf = predict(text, t, m, label_map, task=task)
+        return (label, conf, 0) if return_windows else (label, conf)
+
+    try:
+        enc = t(text, truncation=True, max_length=window, stride=stride,
+                return_overflowing_tokens=True, padding=True, return_tensors="pt")
+        # Tokenizer bookkeeping keys are not model inputs.
+        enc.pop("overflow_to_sample_mapping", None)
+        enc.pop("offset_mapping", None)
+        inputs = {k: v[:max_windows] for k, v in enc.items()}
+        n = int(inputs["input_ids"].shape[0])
+        with torch.no_grad():
+            logits = m(**inputs).logits
+        probs, idx = _mapped_probs(logits, label_map)
+        mean = probs.mean(dim=0)          # still sums to 1 over the mapped labels
+        best = int(torch.argmax(mean).item())
+        label, conf = label_map[idx[best]], mean[best].item() * 100
+        return (label, conf, n) if return_windows else (label, conf)
+    except Exception as e:
+        logger.error(f"Windowed inference error in task '{task}': {e}", exc_info=True)
+        return (None, None, 0) if return_windows else (None, None)
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  EXPLAINABLE AI (SHAP) — "AI Decision Drivers"
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+_STOPWORDS = set("""
+a about above after again against all also am an and any are as at be because been before being below between both
+but by can could did do does doing down during each few for from further had has have having he her here hers him his
+how i if in into is it its itself just me more most my no nor not now of off on once only or other our ours out over
+own same she should so some such than that the their theirs them then there these they this those through to too under
+until up upon very was we were what when where which while who whom why will with would you your said shall may also
+hon'ble learned sri shri smt mr mrs ms dated vide para paragraph page per viz thereof therein whereas hereby
+""".split())
+
+def explain_outcome(text, target_label, max_tokens=256, max_evals=300):
+    """SHAP explanation of the outcome model (Module C) for the first `max_tokens` tokens.
+
+    Uses shap.Explainer with a Text masker (Partition explainer). Returns a dict with
+    word-level contributions toward `target_label`, or None if SHAP/models are unavailable.
+    """
+    if not SHAP_AVAILABLE:
+        return None
+    _, _, t_c, m_c, _ = get_models()
+    if t_c is None or m_c is None:
+        return None
+    label_ids = {v: k for k, v in OUTCOME_LABELS.items()}
+    target = sorted(OUTCOME_LABELS).index(label_ids[target_label])
+
+    # Explain only the first max_tokens tokens: SHAP needs hundreds of forward passes.
+    enc = t_c(text, truncation=True, max_length=max_tokens, add_special_tokens=False,
+              return_offsets_mapping=True)
+    offsets = enc.get("offset_mapping") or []
+    short = text[:offsets[-1][1]] if offsets else text[:1500]
+
+    def f(batch):
+        batch = [str(x) for x in batch]
+        toks = t_c(batch, padding=True, truncation=True, max_length=max_tokens + 2, return_tensors="pt")
+        with torch.no_grad():
+            logits = m_c(**toks).logits
+        probs, _ = _mapped_probs(logits, OUTCOME_LABELS)
+        return probs.numpy()
+
+    explainer = shap.Explainer(f, shap.maskers.Text(t_c), output_names=[OUTCOME_LABELS[i] for i in sorted(OUTCOME_LABELS)])
+    sv = explainer([short], max_evals=max_evals, batch_size=8, silent=True)   # small batches keep peak RAM low
+    pieces = list(sv.data[0])
+    values = [float(v) for v in sv.values[0][:, target]]
+
+    # Merge sub-word pieces into whole words (a piece ending in whitespace closes a word).
+    words, cur_txt, cur_val = [], "", 0.0
+    for p, v in zip(pieces, values):
+        cur_txt += p
+        cur_val += v
+        if p.endswith((" ", "\n", "\t")) or not p:
+            if cur_txt.strip():
+                words.append((cur_txt, cur_val))
+            cur_txt, cur_val = "", 0.0
+    if cur_txt.strip():
+        words.append((cur_txt, cur_val))
+
+    # Aggregate by normalised word for the ranking; skip stopwords, numbers and punctuation.
+    agg = {}
+    for w, v in words:
+        k = re.sub(r'[^a-z\-]', '', w.lower())
+        if len(k) < 3 or k in _STOPWORDS:
+            continue
+        agg[k] = agg.get(k, 0.0) + v
+    ranked = sorted(agg.items(), key=lambda kv: abs(kv[1]), reverse=True)
+    return {
+        "target": target_label,
+        "words": words,
+        "supporting": [(k, v) for k, v in ranked if v > 0][:12],
+        "opposing": [(k, v) for k, v in ranked if v < 0][:8],
+        "base_value": float(sv.base_values[0][target]),
+        "n_tokens": len(offsets) if offsets else None,
+        "max_tokens": max_tokens,
+    }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  LOGIN PAGE
@@ -649,7 +1052,9 @@ color: #FFFFFF !important;
 font-weight: 600 !important;
 }
 .stApp:has(#login-root) div[role="radiogroup"] input[type="radio"],
-.stApp:has(#login-root) div[role="radiogroup"] label > div:first-of-type {
+/* Hide only the radio circle: any div in the option that is not, does not contain, and is not inside
+   the label text. Works for both the old (baseweb) and new (react-aria) Streamlit radio markup. */
+.stApp:has(#login-root) div[role="radiogroup"] label div:not([data-testid="stMarkdownContainer"]):not([data-testid="stMarkdownContainer"] *):not(:has([data-testid="stMarkdownContainer"])) {
 display: none !important;
 }
 .stApp:has(#login-root) div[data-testid="stTextInput"] label {
@@ -791,18 +1196,31 @@ letter-spacing: 0.01em !important;
 
     with st.container(border=True):
         st.markdown('<span id="login-card-anchor" style="display:none;"></span>', unsafe_allow_html=True)
-        st.markdown('<label class="chamber-label">CHAMBER JURISDICTION</label>', unsafe_allow_html=True)
-        role = st.radio("Select Role", ["Student", "Lawyer", "Judge", "Admin"], index=3, horizontal=True, label_visibility="collapsed", key="auth_role_selector")
+        role = None
+        if not supabase:
+            # Online, the role always comes from the `profiles` table, so the picker is
+            # only shown for the offline demo (nothing is saved and no data is reachable).
+            st.info("Database offline — running in local demo mode. Nothing will be saved.")
+            st.markdown('<label class="chamber-label">DEMO ROLE</label>', unsafe_allow_html=True)
+            role = st.radio("Select Role", ["Student", "Lawyer", "Judge", "Admin"], index=1, horizontal=True, label_visibility="collapsed", key="auth_role_selector")
 
-        email = st.text_input("Email Address", placeholder="name@firm.com")
-        password = st.text_input("Password", type="password", placeholder="Enter your password")
+        email = st.text_input("Email Address", placeholder="name@firm.com", max_chars=254).strip().lower()
+        password = st.text_input("Password", type="password", placeholder="Enter your password", max_chars=128)
 
         st.markdown("<div style='height: 0.25rem;'></div>", unsafe_allow_html=True)
 
-        if st.button("Sign In →", use_container_width=True):
-            if not email or not password:
+        locked = login_lock_remaining() if supabase else 0
+        if locked:
+            st.error(f"Too many failed sign-in attempts. Please wait {locked} seconds and try again.")
+
+        if st.button("Sign In →", use_container_width=True, disabled=bool(locked)):
+            if supabase and (not email or not password):
                 st.warning("Please enter both email and password.")
             elif supabase:
+                # A07: one generic message for every failure, so the page never reveals
+                # whether an email is registered; the real reason goes to the server log.
+                generic = ("Sign-in failed. Check your email and password. "
+                           "If you just registered, confirm your email first.")
                 try:
                     res = supabase.auth.sign_in_with_password({"email": email, "password": password})
                     if res and res.user:
@@ -812,39 +1230,55 @@ letter-spacing: 0.01em !important;
                             profile_res = supabase.table('profiles').select('role').eq('user_id', user_id).execute()
                             if profile_res.data and len(profile_res.data) > 0:
                                 fetched_role = profile_res.data[0].get('role')
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.warning(f"Could not read role at sign-in: {e}")
                         st.session_state.authenticated = True
                         st.session_state.user_id = user_id
-                        st.session_state.user_email = email
-                        if fetched_role:
-                            st.session_state.role = fetched_role
-                        else:
-                            st.session_state.role = "Student"
+                        # The verified email from Supabase, not the text typed in the box.
+                        st.session_state.user_email = (res.user.email or email).lower()
+                        st.session_state.role = safe_role(fetched_role)
+                        st.session_state.role_checked_at = time.time()
+                        st.session_state.login_failures = 0
+                        SEC.info(f"sign-in ok email={st.session_state.user_email!r} role={st.session_state.role}")
                         st.rerun()
                     else:
-                        st.error("Authentication failed. Invalid user credentials.")
+                        record_login_failure(email)
+                        st.error(generic)
                 except Exception as err:
-                    st.error(f"Sign in failed: {err}")
+                    logger.warning(f"Sign-in error: {err}")
+                    record_login_failure(email)
+                    st.error(generic)
             else:
-                st.session_state.authenticated = True
-                st.session_state.user_id = "demo-offline-uid"
-                st.session_state.user_email = email if email else f"{role.lower()}@legalai.in"
-                st.session_state.role = role
-                st.rerun()
+                # Offline demo: no credentials can be checked, so Admin is only available
+                # when explicitly enabled (ALLOW_OFFLINE_ADMIN_DEMO = true in secrets.toml).
+                admin_demo_ok = str(_get_secret("ALLOW_OFFLINE_ADMIN_DEMO") or os.environ.get("ALLOW_OFFLINE_ADMIN_DEMO", "")).lower() == "true"
+                if role == "Admin" and not admin_demo_ok:
+                    st.error("Admin sign-in needs the database. Restore Supabase, or set ALLOW_OFFLINE_ADMIN_DEMO = true in .streamlit/secrets.toml for a local demo.")
+                else:
+                    st.session_state.authenticated = True
+                    st.session_state.offline_demo = True
+                    st.session_state.user_id = "demo-offline-uid"
+                    st.session_state.user_email = email if email else f"{role.lower()}@demo.local"
+                    st.session_state.role = role
+                    st.rerun()
 
-        if st.button("Create Account", use_container_width=True):
-            if supabase and email and password:
+        if supabase and st.button("Create Account", use_container_width=True):
+            if not email or not password:
+                st.warning("Please enter email and password to register.")
+            elif not EMAIL_RE.match(email):
+                st.warning("Please enter a valid email address.")
+            elif password_problem(password):
+                st.warning(password_problem(password))
+            else:
                 try:
                     res = supabase.auth.sign_up({"email": email, "password": password})
-                    if res and res.user:
-                        st.success("Account created successfully as Student! Please sign in. (Role upgrades can be requested from your workspace).")
-                    else:
-                        st.error("Registration failed.")
+                    SEC.info(f"sign-up requested email={email!r} ok={bool(res and res.user)}")
                 except Exception as err:
-                    st.error(f"Registration failed: {err}")
-            else:
-                st.warning("Please enter email and password to register.")
+                    logger.warning(f"Sign-up error: {err}")
+                # A07: the same message whether or not the email already exists.
+                st.success("If this email can be registered, your Student account is ready. "
+                           "Check your inbox to confirm it, then sign in. "
+                           "Role upgrades can be requested from your workspace.")
 
     st.markdown('<div class="login-footer">Legal AI Hub • InLegalBERT</div>', unsafe_allow_html=True)
 
@@ -1003,13 +1437,17 @@ min-width: 100% !important;
 
     with st.container(border=True):
         st.markdown('<span id="predictor-filters-card" style="display:none;"></span>', unsafe_allow_html=True)
-        f1, f2, f3 = st.columns(3)
+        # The jurisdiction (Civil / Criminal / Constitutional) is predicted by Module B,
+        # so there is no manual "Domain" picker; these two fields are saved with the case.
+        f1, f2 = st.columns(2)
         with f1:
-            case_category = st.selectbox("Domain", ["Criminal Law", "Civil Law", "Constitutional Law"])
-        with f2:
             court_level = st.selectbox("Court Level", ["Supreme Court of India", "High Court", "District Court"])
-        with f3:
-            statutory_tags = st.text_input("Statutory Tags", placeholder="e.g., Section 302")
+        with f2:
+            statutory_tags = st.text_input("Statutory Tags (saved with the case)", placeholder="e.g., Section 302",
+                                           max_chars=MAX_TAG_CHARS)
+        # Opt-in: the reported benchmark numbers use the first-512-token path, so that stays the default.
+        full_doc = st.checkbox("Analyse full document (sliding window, slower)", value=False, key="full_doc_mode")
+    mode = "full" if full_doc else "first512"
 
     st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
 
@@ -1019,7 +1457,11 @@ min-width: 100% !important;
         with st.container(border=True):
             st.markdown('<span id="predictor-upload-card" style="display:none;"></span>', unsafe_allow_html=True)
             st.markdown('<div class="card-header"><h3 class="card-title">Upload Document</h3><span class="card-badge">PDF, TXT</span></div>', unsafe_allow_html=True)
-            if t_b is None or m_b is None or t_c is None or m_c is None:
+            # Loaded here (not at import) so other pages never wait for the models; the
+            # first visit shows the "Loading InLegalBERT models..." spinner inside this card.
+            t_b, m_b, t_c, m_c, model_load_error = get_models()
+            MODELS_READY = all(x is not None for x in (t_b, m_b, t_c, m_c))
+            if not MODELS_READY:
                 if model_load_error == "files_missing":
                     st.warning("⚠️ Deep learning models (InLegalBERT) are unavailable: Model weights or config files are missing in `./models/`. Predictions are running in rule-based heuristic fallback mode.")
                 elif model_load_error == "out_of_memory":
@@ -1027,91 +1469,141 @@ min-width: 100% !important;
                 elif model_load_error == "transformers_unavailable":
                     st.warning("⚠️ Deep learning models (InLegalBERT) are unavailable: PyTorch or Transformers is not installed. Predictions are running in rule-based heuristic fallback mode.")
                 else:
-                    st.warning(f"⚠️ Deep learning models (InLegalBERT) are unavailable ({model_load_error}). Predictions are running in rule-based heuristic fallback mode.")
+                    logger.error(f"Model load error: {model_load_error}")
+                    st.warning("⚠️ Deep learning models (InLegalBERT) are unavailable (see the terminal log for details). Predictions are running in rule-based heuristic fallback mode.")
 
             file = st.file_uploader("Upload PDF or TXT file", type=["pdf", "txt"], label_visibility="collapsed")
 
             if file:
-                with st.spinner("Analyzing document..."):
-                    text = extract_text_from_pdf(file) if file.type == "application/pdf" else file.getvalue().decode('utf-8', errors='ignore')
-                    clean = translate_laws_to_bns(clean_legal_text(text))
-                    struct_d, crit = structure_aware_chunking(clean)
+                raw_bytes = file.getvalue()
+                file_hash = hashlib.sha256(raw_bytes).hexdigest()
+                # Streamlit re-runs the whole script on every click; only analyse (and log
+                # to case_predictions) when a NEW file is uploaded, not on every rerun.
+                # The analysis mode is part of the key so toggling it re-analyses the same file.
+                if st.session_state.predictions.get("hash") != f"{file_hash}:{mode}":
+                    with st.spinner("Analyzing document..."):
+                        total_pages = None
+                        if file.type == "application/pdf" or file.name.lower().endswith(".pdf"):
+                            text, total_pages = extract_text_from_pdf(io.BytesIO(raw_bytes))
+                        else:
+                            text = raw_bytes.decode('utf-8', errors='ignore')
+                        clean, struct_d, crit = prepare_document(text)
 
-                    # Basic sanity check: verify whether document looks like a court judgment
-                    legal_keywords = ["court", "judgment", "appellant", "respondent", "petition", "order", "section", "act"]
-                    has_structured_sections = any(bool(struct_d.get(k)) for k in ["FACTS", "ARGUMENTS", "JUDGMENT"])
-                    clean_lower = clean.lower()
-                    keyword_hits = [kw for kw in legal_keywords if re.search(r'\b' + re.escape(kw) + r'\b', clean_lower)]
-                    # Require genuine legal terminology (word boundaries), preventing false positives from words like 'competition' or 'react'
-                    is_likely_legal = (len(keyword_hits) >= 2) and (has_structured_sections or len(keyword_hits) >= 3)
+                        # Basic sanity check: verify whether document looks like a court judgment
+                        legal_keywords = ["court", "judgment", "appellant", "respondent", "petition", "order", "section", "act"]
+                        has_structured_sections = any(bool(struct_d.get(k)) for k in ["FACTS", "ARGUMENTS", "JUDGMENT"])
+                        clean_lower = clean.lower()
+                        keyword_hits = [kw for kw in legal_keywords if re.search(r'\b' + re.escape(kw) + r'\b', clean_lower)]
+                        is_likely_legal = (len(keyword_hits) >= 2) and (has_structured_sections or len(keyword_hits) >= 3)
 
-                    if not is_likely_legal:
-                        st.warning("⚠️ Document Notice: This document does not appear to be a court judgment or legal petition (no judicial sections or statutory citations were recognized). Predictions may be unreliable.")
+                        if mode == "full":
+                            cat, cat_c, n_win = predict_windows(crit, t_b, m_b, JURISDICTION_LABELS,
+                                                                task="jurisdiction", return_windows=True)
+                            outc, outc_c, n_win_c = predict_windows(crit, t_c, m_c, OUTCOME_LABELS,
+                                                                    task="outcome", return_windows=True)
+                            n_win = max(n_win, n_win_c)
+                        else:
+                            cat, cat_c = predict(crit, t_b, m_b, JURISDICTION_LABELS, task="jurisdiction")
+                            outc, outc_c = predict(crit, t_c, m_c, OUTCOME_LABELS, task="outcome")
+                            n_win = 1
 
-                    cat, cat_c = predict(crit, t_b, m_b, {0: "Civil Law", 1: "Criminal Law", 2: "Constitutional Law"}, task="jurisdiction")
-                    outc, outc_c = predict(crit, t_c, m_c, {0: "Dismissed / Rejected", 1: "Allowed / Accepted"}, task="outcome")
+                        st.session_state.predictions = {
+                            "hash": f"{file_hash}:{mode}",
+                            "mode": mode, "windows": n_win,
+                            "category": cat, "cat_conf": cat_c,
+                            "outcome": outc, "out_conf": outc_c,
+                            "source": "model" if MODELS_READY else "heuristic",
+                            "file": file.name, "text": clean, "struct": struct_d, "crit": crit,
+                            "statutes": find_statute_mappings(clean),
+                            "is_likely_legal": is_likely_legal,
+                            "total_pages": total_pages,
+                            "no_text": not text.strip(),
+                            "shap": None,
+                        }
 
-                    st.session_state.predictions = {
-                        "category": cat, "cat_conf": cat_c,
-                        "outcome": outc, "out_conf": outc_c,
-                        "file": file.name, "text": clean, "struct": struct_d,
-                        "is_likely_legal": is_likely_legal
-                    }
+                        # Log each uploaded file once, even if it is re-analysed in another mode.
+                        logged = st.session_state.setdefault("logged_hashes", set())
+                        if supabase and cat is not None and outc is not None and file_hash not in logged:
+                            logged.add(file_hash)
+                            try:
+                                supabase.table("case_predictions").insert({
+                                    "user_email": st.session_state.user_email,
+                                    "filename": file.name,
+                                    "predicted_jurisdiction": cat,
+                                    "jurisdiction_confidence": cat_c,
+                                    "predicted_outcome": outc,
+                                    "outcome_confidence": outc_c
+                                }).execute()
+                            except Exception as log_err:
+                                logger.warning(f"Could not log prediction: {log_err}")
 
-                    if supabase:
-                        try:
-                            supabase.table("case_predictions").insert({
-                                "user_email": st.session_state.user_email,
-                                "filename": file.name,
-                                "predicted_jurisdiction": cat,
-                                "jurisdiction_confidence": cat_c,
-                                "predicted_outcome": outc,
-                                "outcome_confidence": outc_c
-                            }).execute()
-                        except Exception:
-                            pass
+                p_now = st.session_state.predictions
+                if p_now.get("no_text"):
+                    st.error("No text could be read from this PDF. It is probably a scanned image; upload a text-based judgment PDF instead.")
+                elif (p_now.get("total_pages") or 0) > MAX_PDF_PAGES:
+                    st.info(f"Long document: {p_now['total_pages']} pages. Only the first {MAX_PDF_PAGES} pages were analysed.")
+                if not st.session_state.predictions.get("is_likely_legal", True):
+                    st.warning("⚠️ Document Notice: This document does not appear to be a court judgment or legal petition (no judicial sections or statutory citations were recognized). Predictions may be unreliable.")
 
     with col_right:
         with st.container(border=True):
             st.markdown('<span id="predictor-results-card" style="display:none;"></span>', unsafe_allow_html=True)
             st.markdown('<div class="card-header"><h3 class="card-title">Prediction Results</h3></div>', unsafe_allow_html=True)
-            if st.session_state.predictions:
-                p = st.session_state.predictions
+            p = st.session_state.predictions
+            if p and (p.get('outcome') is None or p.get('category') is None):
+                st.error("The model could not process this document (inference error). No prediction is shown. Check the terminal log for details.")
+            elif p:
                 is_likely_legal = p.get('is_likely_legal', True)
+                safe_file = html.escape(str(p['file']))
 
                 if is_likely_legal:
                     is_favorable = "Allow" in p['outcome'] or "Accept" in p['outcome']
                     badge_class = "badge-favorable" if is_favorable else "badge-risk"
                     accent = "#059669" if is_favorable else "#DC2626"
+                    if p.get('source') == "model":
+                        cat_conf_html = f"{p['cat_conf']:.1f}% confidence"
+                        out_conf_html = f"{p['out_conf']:.1f}%"
+                        bar_width = p['out_conf']
+                    else:
+                        cat_conf_html = "rule-based estimate (model not loaded)"
+                        out_conf_html = "rule-based"
+                        bar_width = 0
 
                     st.markdown(f"""
-                        <div class="result-banner" style="border-left: 4px solid {accent} !important;">
+                        <div>
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
-                                <span class="badge {badge_class}">{p['outcome']}</span>
-                                <span style="color: #45464E; font-size: 0.78rem;">{p['file']}</span>
+                                <span class="badge {badge_class}">{html.escape(p['outcome'])}</span>
+                                <span style="color: #45464E; font-size: 0.78rem;">{safe_file}</span>
                             </div>
                             <div style="margin-bottom: 1.25rem;">
                                 <div style="font-size: 0.75rem; color: #45464E; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Jurisdiction</div>
-                                <div style="font-size: 1.3rem; font-weight: 700; color: #041534; margin-top: 0.15rem;">{p['category']}</div>
-                                <div style="font-size: 0.78rem; color: #3F5D9B; margin-top: 0.1rem; font-weight: 600;">{p['cat_conf']:.1f}% confidence</div>
+                                <div style="font-size: 1.3rem; font-weight: 700; color: #041534; margin-top: 0.15rem;">{html.escape(p['category'])}</div>
+                                <div style="font-size: 0.78rem; color: #3F5D9B; margin-top: 0.1rem; font-weight: 600;">{cat_conf_html}</div>
                             </div>
                             <div>
                                 <div style="font-size: 0.78rem; color: #45464E; display: flex; justify-content: space-between; font-weight: 600;">
                                     <span>Outcome Confidence</span>
-                                    <span style="color: {accent}; font-weight: 700;">{p['out_conf']:.1f}%</span>
+                                    <span style="color: {accent}; font-weight: 700;">{out_conf_html}</span>
                                 </div>
                                 <div style="margin-top: 0.5rem; height: 6px; background: #E5EEFF; border-radius: 999px; overflow: hidden;">
-                                    <div style="width: {p['out_conf']}%; height: 100%; background: {accent}; border-radius: 999px; transition: width 0.5s ease;"></div>
+                                    <div style="width: {bar_width}%; height: 100%; background: {accent}; border-radius: 999px; transition: width 0.5s ease;"></div>
                                 </div>
                             </div>
                         </div>
                     """, unsafe_allow_html=True)
+                    st.caption("Decision-support estimate from a model with ~68% measured outcome accuracy — not legal advice.")
+                    if p.get('source') == "model":
+                        if p.get('mode') == "full":
+                            n_win = p.get('windows', 0)
+                            st.caption(f"Analysed: {n_win} overlapping window{'s' if n_win != 1 else ''} of facts & arguments (full-document mode).")
+                        else:
+                            st.caption("Analysed: first 512 tokens of facts & arguments.")
                 else:
                     st.markdown(f"""
-                        <div class="result-banner" style="border-left: 4px solid #94A3B8 !important;">
+                        <div>
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
                                 <span class="badge badge-slate">UNRELIABLE — NOT A LEGAL DOCUMENT</span>
-                                <span style="color: #45464E; font-size: 0.78rem;">{p['file']}</span>
+                                <span style="color: #45464E; font-size: 0.78rem;">{safe_file}</span>
                             </div>
                             <div style="margin-bottom: 1.25rem;">
                                 <div style="font-size: 0.75rem; color: #45464E; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Jurisdiction</div>
@@ -1131,15 +1623,20 @@ min-width: 100% !important;
                                 "title": p['file'],
                                 "summary": p['text'][:500],
                                 "predicted_outcome": p['outcome'],
+                                "predicted_jurisdiction": p['category'],
                                 "ratio_decidendi": p['struct'].get('JUDGMENT', '')[:500],
+                                "relevant_sections_ipc": ", ".join(k for k, _ in p.get('statutes', [])),
+                                "key_issues": statutory_tags.strip()[:MAX_TAG_CHARS] or None,
+                                "relevant_sections_bns": ", ".join(v for _, v in p.get('statutes', [])),
                                 "user_email": st.session_state.user_email,
                                 "case_category": p['category'],
+                                "court_level": court_level,
                                 "jurisdiction_confidence": p['cat_conf'],
                                 "outcome_confidence": p['out_conf']
                             }).execute()
                             st.success("Case saved to Research Vault successfully.")
                         except Exception as e:
-                            st.error(f"Error saving: {e}")
+                            db_error("save the case to the vault", e)
                     else:
                         st.warning("Database offline — cannot save.")
             else:
@@ -1151,25 +1648,105 @@ min-width: 100% !important;
                     </div>
                 """, unsafe_allow_html=True)
 
+    p = st.session_state.predictions
+    if p and p.get('outcome') is not None and p.get('is_likely_legal', True):
+        render_decision_drivers(p)
+
     # Document inspection tabs
-    if st.session_state.predictions:
+    if p:
         st.markdown("<div style='height: 2rem;'></div>", unsafe_allow_html=True)
         st.markdown("<h4 style='font-weight: 700; color: #041534; margin-bottom: 1rem;'>Document Analysis</h4>", unsafe_allow_html=True)
 
-        tab_f, tab_a, tab_j, tab_full = st.tabs(["Facts", "Arguments", "Judgment", "Full Text"])
-        p = st.session_state.predictions
+        tab_f, tab_a, tab_j, tab_s, tab_full = st.tabs(["Facts", "Arguments", "Judgment", "IPC → BNS", "Full Text"])
+
+        def _section_card(content, empty_msg):
+            if content and len(content) > MAX_DISPLAY_CHARS:
+                content = content[:MAX_DISPLAY_CHARS] + " …"
+            body = html.escape(content) if content else f"<em>{empty_msg}</em>"
+            st.markdown(f"<div class='pro-card' style='font-size: 0.9rem; line-height: 1.7; color: #334155; white-space: pre-wrap;'>{body}</div>", unsafe_allow_html=True)
 
         with tab_f:
-            content = p['struct'].get('FACTS') or 'No facts section detected.'
-            st.markdown(f"<div class='pro-card' style='font-size: 0.9rem; line-height: 1.7; color: #334155;'>{content}</div>", unsafe_allow_html=True)
+            _section_card(p['struct'].get('FACTS'), 'No facts section detected.')
         with tab_a:
-            content = p['struct'].get('ARGUMENTS') or 'No arguments section detected.'
-            st.markdown(f"<div class='pro-card' style='font-size: 0.9rem; line-height: 1.7; color: #334155;'>{content}</div>", unsafe_allow_html=True)
+            _section_card(p['struct'].get('ARGUMENTS'), 'No arguments section detected.')
         with tab_j:
-            content = p['struct'].get('JUDGMENT') or 'No judgment section detected.'
-            st.markdown(f"<div class='pro-card' style='font-size: 0.9rem; line-height: 1.7; color: #334155;'>{content}</div>", unsafe_allow_html=True)
+            _section_card(p['struct'].get('JUDGMENT'), 'No judgment section detected.')
+        with tab_s:
+            if p.get('statutes'):
+                import pandas as pd
+                st.dataframe(pd.DataFrame(p['statutes'], columns=["IPC citation", "BNS equivalent"]),
+                             use_container_width=True, hide_index=True)
+                st.caption("The models read the original citations; BNS equivalents are shown for reference only.")
+            else:
+                st.caption("No mapped IPC sections found in this document.")
         with tab_full:
-            st.text_area("Full processed text", value=p['text'], height=350, disabled=True)
+            st.text_area("Full processed text (IPC citations annotated with BNS)", value=translate_laws_to_bns(p['text'][:MAX_DISPLAY_CHARS]), height=350, disabled=True)
+            if len(p['text']) > MAX_DISPLAY_CHARS:
+                st.caption(f"Showing the first {MAX_DISPLAY_CHARS:,} of {len(p['text']):,} characters.")
+
+
+def render_decision_drivers(p):
+    """'AI Decision Drivers' card: SHAP word attributions for the outcome prediction."""
+    st.markdown("<div style='height: 1.5rem;'></div>", unsafe_allow_html=True)
+    st.markdown("<h4 style='font-weight: 700; color: #041534; margin-bottom: 0.25rem;'>AI Decision Drivers (SHAP)</h4>", unsafe_allow_html=True)
+
+    if not models_ready():
+        st.info("Decision drivers need the InLegalBERT models, which are not loaded.")
+        return
+    if not SHAP_AVAILABLE:
+        st.info("Install SHAP to enable decision drivers: `pip install shap`")
+        return
+
+    if p.get('shap') is None:
+        st.caption("Shows which words pushed the outcome model toward its prediction. Takes about 30–90 seconds on CPU.")
+        if st.button("Generate AI Decision Drivers", key="shap_btn"):
+            with st.spinner("Computing SHAP values..."):
+                try:
+                    p['shap'] = explain_outcome(p['crit'], p['outcome'])
+                except Exception as shap_err:
+                    logger.error(f"SHAP failed: {shap_err}", exc_info=True)
+                    st.error(f"Could not compute decision drivers: {shap_err}")
+                    return
+            st.rerun()
+        return
+
+    ex = p['shap']
+    target = html.escape(ex['target'])
+
+    def _bars(items, color):
+        if not items:
+            return "<div style='font-size:0.8rem;color:#64748B;'>None</div>"
+        top = max(abs(v) for _, v in items) or 1.0
+        rows = []
+        for word, val in items:
+            width = max(4, int(100 * abs(val) / top))
+            rows.append(
+                f"<div style='display:flex;align-items:center;gap:8px;margin:3px 0;font-size:0.82rem;'>"
+                f"<span style='width:130px;text-align:right;color:#0B1C30;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'>{html.escape(word)}</span>"
+                f"<span style='flex:1;background:#F1F5F9;border-radius:4px;height:12px;'>"
+                f"<span style='display:block;width:{width}%;height:12px;background:{color};border-radius:4px;'></span></span>"
+                f"<span style='width:56px;color:#475569;font-variant-numeric:tabular-nums;'>{val:+.3f}</span></div>")
+        return "".join(rows)
+
+    c1, c2 = st.columns(2, gap="large")
+    with c1:
+        st.markdown(f"<div class='pro-card'><div style='font-weight:700;color:#059669;margin-bottom:0.5rem;'>Pushes toward “{target}”</div>{_bars(ex['supporting'], '#059669')}</div>", unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"<div class='pro-card'><div style='font-weight:700;color:#DC2626;margin-bottom:0.5rem;'>Pushes against “{target}”</div>{_bars(ex['opposing'], '#DC2626')}</div>", unsafe_allow_html=True)
+
+    # Highlighted passage: green = supports the prediction, red = opposes it.
+    vals = [abs(v) for _, v in ex['words']] or [1.0]
+    scale = max(vals) or 1.0
+    spans = []
+    for w, v in ex['words']:
+        alpha = min(0.85, abs(v) / scale)
+        rgb = "5,150,105" if v > 0 else "220,38,38"
+        spans.append(f"<span style='background:rgba({rgb},{alpha:.2f});border-radius:3px;'>{html.escape(w)}</span>")
+    st.markdown(
+        "<div class='pro-card' style='font-size:0.88rem;line-height:1.9;color:#1E293B;white-space:pre-wrap;'>"
+        + "".join(spans) + "</div>", unsafe_allow_html=True)
+    st.caption(f"SHAP (Partition explainer, text masker) over the first {ex['max_tokens']} tokens of the facts and arguments "
+               f"fed to the outcome model. Values are changes in the predicted probability of “{ex['target']}”.")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  RESEARCH VAULT
@@ -1188,7 +1765,17 @@ def render_vault():
         return
 
     try:
-        cases = supabase.table("cases_vault").select("*").order("created_at", desc=True).limit(12).execute().data
+        search = st.text_input("Search the vault", placeholder="Case name, section (e.g. 302) or keyword",
+                               key="vault_search", max_chars=MAX_SEARCH_CHARS)[:MAX_SEARCH_CHARS]
+        vq = supabase.table("cases_vault").select("*")
+        if st.session_state.get('role') not in REVIEWER_ROLES:
+            vq = vq.eq("user_email", st.session_state.get('user_email', ''))
+        term = re.sub(r'\s+', ' ', re.sub(r'[%_,()*"\\]', ' ', search or '')).strip()
+        if term:
+            like = f'"%{term}%"'   # quoted so spaces are allowed inside PostgREST or() filters
+            cols = ["title", "summary", "case_category", "relevant_sections_ipc", "relevant_sections_bns", "key_issues"]
+            vq = vq.or_(",".join(f"{c}.ilike.{like}" for c in cols))
+        cases = vq.order("created_at", desc=True).limit(24 if term else 12).execute().data
         if not cases:
             st.markdown("""
                 <div class="pro-card" style="text-align: center; padding: 4rem 2rem !important; border-style: dashed !important; background: #FAFBFC !important;">
@@ -1203,8 +1790,12 @@ def render_vault():
                 cols = st.columns(3)
                 for idx, c in enumerate(chunk):
                     with cols[idx]:
-                        outcome = c.get('predicted_outcome', 'Unknown')
+                        outcome = str(c.get('predicted_outcome') or 'Unknown')
                         is_fav = 'Allow' in outcome or 'Accept' in outcome
+                        conf_val = c.get('outcome_confidence')
+                        conf_txt = f"{float(conf_val):.1f}%" if conf_val is not None else "—"
+                        category = html.escape(str(c.get('case_category') or 'General'))
+                        outcome = html.escape(outcome)
                         badge_class = "badge-favorable" if is_fav else "badge-risk"
                         clean_title = html.escape(re.sub(r'\s+', ' ', str(c.get('title','Untitled'))).strip())
                         clean_summary = html.escape(re.sub(r'\s+', ' ', str(c.get('summary') or 'No summary available.')).strip()[:200])
@@ -1213,20 +1804,20 @@ def render_vault():
                             <div class="pro-card" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
                                 <div>
                                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-                                        <span class="badge badge-blue">{c.get('case_category', 'General')}</span>
-                                        <span style="font-size: 0.72rem; color: #94A3B8;">{str(c.get('created_at',''))[:10]}</span>
+                                        <span class="badge badge-blue">{category}</span>
+                                        <span style="font-size: 0.72rem; color: #94A3B8;">{esc(str(c.get('created_at',''))[:10])}</span>
                                     </div>
                                     <h4 style="font-size: 1.05rem; font-weight: 700; color: #0F172A; margin: 0 0 0.5rem 0; line-height: 1.35;">{clean_title}</h4>
                                     <p style="font-size: 0.8rem; color: #64748B; line-height: 1.6; margin-bottom: 1rem; height: 64px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;">{clean_summary}</p>
                                 </div>
                                 <div style="padding-top: 0.75rem; border-top: 1px solid #F1F5F9; display: flex; justify-content: space-between; align-items: center;">
                                     <span class="badge {badge_class}">{outcome}</span>
-                                    <span style="font-weight: 700; color: #1E3A5F; font-size: 0.95rem;">{c.get('outcome_confidence', 0.0):.1f}%</span>
+                                    <span style="font-weight: 700; color: #1E3A5F; font-size: 0.95rem;">{conf_txt}</span>
                                 </div>
                             </div>
                         """, unsafe_allow_html=True)
     except Exception as e:
-        st.error(f"Error loading vault: {e}")
+        db_error("load the vault", e)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  IPC-BNS LAB
@@ -1242,9 +1833,7 @@ def lookup_statute(prompt: str, mapping: dict):
     seen = set()
 
     # 1. Section number search
-    sec_match = re.search(r'\d+[A-Za-z]?', cleaned)
-    if sec_match:
-        sec_num = sec_match.group(0).lower()
+    for sec_num in dict.fromkeys(m.lower() for m in re.findall(r'\d+[A-Za-z]?', cleaned)):
         pattern = re.compile(rf'\b{re.escape(sec_num)}\b', re.IGNORECASE)
         for k, v in mapping.items():
             if pattern.search(k):
@@ -1270,118 +1859,134 @@ def lookup_statute(prompt: str, mapping: dict):
 
     return results[:5]
 
+def chat_markup(text):
+    """Escape text for HTML, then render **bold** and line breaks (markdown is not parsed inside raw HTML)."""
+    safe = html.escape(str(text))
+    safe = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', safe)
+    return safe.replace("\n", "<br>")
+
+@st.cache_resource(show_spinner="Loading the legal knowledge base (statutes, concepts, past judgments)...")
+def get_legal_assistant(llm_key=None):
+    """Build the study assistant once per server (index build takes a few seconds)."""
+    from legal_assistant import LegalAssistant, llm_config_from
+    llm = llm_config_from(lambda k: _get_secret(k) or os.environ.get(k)) if llm_key else None
+    return LegalAssistant(llm=llm)
+
+
+LAB_EXAMPLES = [
+    "What is 302 IPC in BNS?",
+    "Explain anticipatory bail",
+    "Difference between murder and culpable homicide",
+    "Past cases where a conviction rested only on circumstantial evidence",
+    "Which BNS section deals with organised crime?",
+    "Can an FIR for attempt to murder be quashed after a compromise?",
+]
+
+
+def _render_case_cards(cases, key_prefix):
+    for i, c in enumerate(cases or []):
+        verdict = c.get("verdict_short") or c.get("verdict", "")
+        icon = "🟢" if str(verdict).lower().startswith("allowed") else ("🔴" if str(verdict).lower().startswith("dismissed") else "🟡")
+        title = f"{icon} {c['name']} — {c.get('court', '')}, {c.get('year') or 'n/a'} · {verdict}"
+        with st.expander(title, expanded=False):
+            st.markdown(f"**Category:** {c.get('category') or '—'}  \n**Verdict:** {c.get('verdict', '')}")
+            if c.get("passage"):
+                st.markdown("**Most relevant passage**")
+                st.text(c["passage"])
+            if c.get("final_order"):
+                st.markdown("**What the court finally ordered**")
+                st.text(c["final_order"])
+
+
+LAB_DEDUP_SECONDS = 3.0
+
+
+def _is_duplicate_lab_prompt(prompt, history, window=LAB_DEDUP_SECONDS):
+    """True if `prompt` repeats the last question asked within `window` seconds.
+
+    Each click / Enter is a separate Streamlit trigger. When the app is slow (first load of the
+    knowledge base, low RAM) users click an example again because nothing seems to happen, and
+    every queued click used to append another identical user+assistant pair. A deliberate
+    re-ask after a few seconds still goes through.
+    """
+    last = st.session_state.get("lab_last_prompt")
+    if not last or last[0] != prompt or time.time() - last[1] > window:
+        return False
+    last_user = next((m["content"] for m in reversed(history) if m.get("role") == "user"), None)
+    return last_user == prompt
+
+
 def render_lab():
     st.markdown("""
-        <div class="animate-in" style='margin-bottom: 2rem;'>
+        <div class="animate-in" style='margin-bottom: 1.5rem;'>
             <span class="badge badge-navy" style="margin-bottom: 0.5rem;">Statutory Lab</span>
-            <h1 style="font-weight: 800; font-size: 2.2rem; color: #0F172A; margin: 0; letter-spacing: -0.02em;">IPC-BNS Translation Lab</h1>
-            <p style='color: #64748B; font-size: 0.95rem; margin-top: 0.35rem;'>AI-powered consultation for mapping legacy IPC codes to modern BNS equivalents.</p>
+            <h1 style="font-weight: 800; font-size: 2.2rem; color: #0F172A; margin: 0; letter-spacing: -0.02em;">Legal Study Assistant</h1>
+            <p style='color: #64748B; font-size: 0.95rem; margin-top: 0.35rem;'>Ask about IPC ↔ BNS sections, legal concepts, or describe facts to find similar past judgments and their verdicts.</p>
         </div>
     """, unsafe_allow_html=True)
 
-    # Determine last searched query to filter relevant cases
-    last_query = st.session_state.get('last_statute_query', '')
-    if not last_query and st.session_state.get('chat_history'):
-        for msg in reversed(st.session_state.chat_history):
-            if msg.get('role') == 'user':
-                last_query = msg.get('content', '')
-                break
+    llm_on = bool(_get_secret("LLM_BASE_URL") or os.environ.get("LLM_BASE_URL"))
+    bot = get_legal_assistant("on" if llm_on else None)
+    history = st.session_state.setdefault("lab_messages", [])
 
-    related_cases = []
-    if last_query and supabase:
-        sec_m = re.search(r'\d+[A-Za-z]?', last_query)
-        filter_term = sec_m.group(0) if sec_m else (last_query.strip() if len(last_query.strip()) >= 3 else "")
-        if filter_term:
-            try:
-                clean_term = re.sub(r'[%_,\(\)]', '', filter_term).strip()
-                if clean_term:
-                    res = supabase.table("cases_vault").select("*").or_(
-                        f"title.ilike.%{clean_term}%,summary.ilike.%{clean_term}%"
-                    ).limit(3).execute()
-                    related_cases = res.data or []
-            except Exception as e:
-                logger.warning(f"Error fetching related cases: {e}")
-                related_cases = []
+    col_side, col_chat = st.columns([1, 2.6], gap="large")
 
-    col_sidebar, col_chat = st.columns([1, 2.2], gap="large")
-
-    with col_sidebar:
-        if related_cases:
-            st.markdown("<h4 style='font-weight: 700; color: #0F172A; margin-bottom: 0.75rem;'>Related Cases</h4>", unsafe_allow_html=True)
-            for c in related_cases:
-                c_title = html.escape(re.sub(r'\s+', ' ', str(c.get('title', 'Untitled'))).strip())
-                c_summary = html.escape(re.sub(r'\s+', ' ', str(c.get('summary') or '')).strip()[:100])
-                st.markdown(f"""
-                    <div class="pro-card" style="padding: 1.1rem !important; margin-bottom: 0.75rem !important;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-                            <span class="badge badge-blue" style="font-size: 0.6rem;">{c.get('case_category','General')}</span>
-                        </div>
-                        <h5 style="font-size: 0.85rem; font-weight: 700; color: #0F172A; margin: 0 0 0.25rem 0;">{c_title}</h5>
-                        <p style="font-size: 0.72rem; color: #64748B; margin: 0; line-height: 1.5; height: 32px; overflow: hidden;">{c_summary}</p>
-                    </div>
-                """, unsafe_allow_html=True)
+    with col_side:
+        st.markdown("<h4 style='font-weight: 700; color: #0F172A; margin-bottom: 0.5rem;'>Try asking</h4>", unsafe_allow_html=True)
+        clicked_example = None
+        for i, ex in enumerate(LAB_EXAMPLES):
+            # Handled in THIS run (below), not stashed + st.rerun(): the extra rerun hop widened
+            # the window in which a second click on a slow app queued the same question twice.
+            if st.button(ex, key=f"lab_ex_{i}", use_container_width=True):
+                clicked_example = ex
+        st.markdown("<div style='height: 0.75rem;'></div>", unsafe_allow_html=True)
+        st.caption(f"Knowledge base: {len(bot.statutes)} IPC–BNS sections · {len(bot.concepts)} concepts · "
+                   f"{len(bot.cases)} past judgments" + (" · LLM answers on" if bot.llm else " · offline mode"))
+        if history and st.button("Clear conversation", key="lab_clear", use_container_width=True):
+            st.session_state["lab_messages"] = []
+            st.rerun()
 
     with col_chat:
-        st.markdown("<h4 style='font-weight: 700; color: #0F172A; margin-bottom: 0.75rem;'>AI Legal Assistant</h4>", unsafe_allow_html=True)
+        if not history:
+            st.markdown("""
+                <div style="text-align: center; padding: 3rem 0; min-height: 220px;">
+                    <span class="material-symbols-outlined" style="font-size: 48px; color: #CBD5E1; display: block; margin-bottom: 0.75rem;">forum</span>
+                    <h4 style="color: #475569; margin-bottom: 0.25rem;">Start a conversation</h4>
+                    <p style="color: #94A3B8; font-size: 0.85rem; max-width: 320px; margin: 0 auto;">Ask anything about Indian criminal law, or pick an example on the left.</p>
+                </div>
+            """, unsafe_allow_html=True)
 
-        with st.container():
-            if not st.session_state.chat_history:
-                st.markdown("""
-                    <div style="text-align: center; padding: 4rem 0; min-height: 300px;">
-                        <span class="material-symbols-outlined" style="font-size: 48px; color: #CBD5E1; display: block; margin-bottom: 0.75rem;">forum</span>
-                        <h4 style="color: #475569; margin-bottom: 0.25rem;">Start a Conversation</h4>
-                        <p style="color: #94A3B8; font-size: 0.82rem; max-width: 280px; margin: 0 auto;">Ask about IPC sections, BNS mappings, or legal precedents.</p>
-                    </div>
-                """, unsafe_allow_html=True)
-            else:
-                for msg in st.session_state.chat_history:
-                    if msg["role"] == "user":
-                        st.markdown(f"""
-                            <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
-                                <div style="background: #1E3A5F; color: #FFFFFF; border-radius: 14px 14px 4px 14px; padding: 0.85rem 1.15rem; max-width: 75%; font-size: 0.9rem; line-height: 1.6;">
-                                    {msg['content']}
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"""
-                            <div style="display: flex; justify-content: flex-start; align-items: flex-start; gap: 0.6rem; margin-bottom: 1rem;">
-                                <div style="display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; background: #EFF6FF; border-radius: 50%; flex-shrink: 0;">
-                                    <span class="material-symbols-outlined" style="font-size: 16px; color: #1E3A5F;">smart_toy</span>
-                                </div>
-                                <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 4px 14px 14px 14px; padding: 0.85rem 1.15rem; max-width: 75%; font-size: 0.9rem; line-height: 1.6; color: #334155;">
-                                    {msg['content']}
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)
+        for n, msg in enumerate(history):
+            with st.chat_message(msg["role"], avatar="🧑‍🎓" if msg["role"] == "user" else "⚖️"):
+                # st.markdown escapes HTML by default, so user text cannot inject markup
+                st.markdown(msg["content"])
+                result = msg.get("result") or {}
+                if result.get("cases"):
+                    _render_case_cards(result["cases"], f"m{n}")
 
-        prompt = st.chat_input("Ask about IPC sections, BNS mappings, or legal concepts...")
+        prompt = st.chat_input("Ask about a section, a concept, or describe a case…", max_chars=MAX_PROMPT_CHARS)
+        prompt = prompt or clicked_example or st.session_state.pop("lab_pending", None)
         if prompt:
-            st.session_state['last_statute_query'] = prompt
-            st.session_state.chat_history.append({"role": "user", "content": prompt})
-            matches = lookup_statute(prompt, ipc_to_bns_map)
-            if matches:
-                if len(matches) == 1:
-                    ipc_key, bns_val = matches[0]
-                    response = f"**Match Found:**\n\nIPC Section **{ipc_key.title()}** → BNS Section **{bns_val}**\n\nThis mapping is part of the Bharatiya Nyaya Sanhita (BNS) framework."
-                else:
-                    lines = [f"• **{k.title()}** → **{v}**" for k, v in matches]
-                    match_str = "\n".join(lines)
-                    response = f"**Matches Found ({len(matches)}):**\n\n{match_str}\n\nThis mapping is part of the Bharatiya Nyaya Sanhita (BNS) framework."
-            else:
-                response = f"No exact IPC/BNS match found for '{prompt}'. Try entering a specific section number (e.g. 302) or a keyword (e.g. murder)."
-
-            st.session_state.chat_history.append({"role": "assistant", "content": response})
-
+            prompt = prompt[:MAX_PROMPT_CHARS]   # A04: also enforced server-side
+        if prompt and _is_duplicate_lab_prompt(prompt, history):
+            prompt = None
+        if prompt:
+            past_results = [m["result"] for m in history if m.get("result")]
+            with st.spinner("Searching statutes, concepts and past judgments..."):
+                result = bot.answer(prompt, past_results)
+            history.append({"role": "user", "content": prompt})
+            history.append({"role": "assistant", "content": result["text"], "result": result})
+            # Stamped after answering, so a click queued while the answer was computing is caught.
+            st.session_state["lab_last_prompt"] = (prompt, time.time())
             if supabase:
                 try:
                     supabase.table("student_queries").insert({
                         "user_email": st.session_state.user_email,
                         "query_text": prompt,
-                        "ai_response": response
+                        "ai_response": result["text"][:4000],
                     }).execute()
-                except Exception:
-                    pass
+                except Exception as log_err:
+                    logger.warning(f"Could not save student query: {log_err}")
             st.rerun()
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1404,7 +2009,7 @@ def render_history():
     try:
         hist = get_history()
     except Exception as e:
-        st.error(f"Failed to load case history: {e}")
+        db_error("load the case history", e)
         hist = []
 
     if hist:
@@ -1420,7 +2025,7 @@ def render_history():
             'outcome_confidence': 'Confidence %',
             'created_at': 'Date'
         }
-        if user_role == 'Admin' and 'user_email' in df.columns:
+        if user_role in REVIEWER_ROLES and 'user_email' in df.columns:
             cols = ['user_email'] + cols
             col_names['user_email'] = 'User Email'
 
@@ -1449,6 +2054,12 @@ def render_role_requests():
         </div>
     """, unsafe_allow_html=True)
 
+    # A01: checked again here (not only in the menu), so this page can never render for a non-Admin.
+    if st.session_state.get('role') != 'Admin':
+        SEC.warning(f"blocked non-admin from role requests email={st.session_state.get('user_email')!r}")
+        st.error("Only Administrators can view this page.")
+        return
+
     if not supabase:
         st.warning("Database offline. Cannot manage role requests.")
         return
@@ -1456,7 +2067,7 @@ def render_role_requests():
     try:
         reqs = supabase.table('role_requests').select('*').order('requested_at', desc=True).execute().data
     except Exception as e:
-        st.error(f"Error fetching role requests: {e}")
+        db_error("load the role requests", e)
         return
 
     pending = [r for r in reqs if r.get('status') == 'pending']
@@ -1493,17 +2104,18 @@ def render_role_requests():
                 req_r = r.get('requested_role', 'Lawyer')
                 r_date = str(r.get('requested_at', ''))[:16].replace('T', ' ')
 
+                # A03: every value here comes from a row the requesting user wrote, so all are escaped.
                 st.markdown(f"""
                     <div class="pro-card" style="margin-bottom: 1rem;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <div>
-                                <h4 style="font-size: 1.05rem; font-weight: 700; color: #0F172A; margin: 0 0 0.35rem 0;">{u_email}</h4>
+                                <h4 style="font-size: 1.05rem; font-weight: 700; color: #0F172A; margin: 0 0 0.35rem 0;">{esc(u_email)}</h4>
                                 <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; color: #64748B;">
-                                    <span>Current: <strong style="color: #475569;">{curr_r}</strong></span>
+                                    <span>Current: <strong style="color: #475569;">{esc(curr_r)}</strong></span>
                                     <span>➔</span>
-                                    <span>Requested: <strong style="color: #1E40AF;">{req_r}</strong></span>
+                                    <span>Requested: <strong style="color: #1E40AF;">{esc(req_r)}</strong></span>
                                     <span>•</span>
-                                    <span>{r_date}</span>
+                                    <span>{esc(r_date)}</span>
                                 </div>
                             </div>
                         </div>
@@ -1512,24 +2124,27 @@ def render_role_requests():
 
                 col_appr, col_rej, _ = st.columns([1, 1, 3], gap="small")
                 with col_appr:
-                    if st.button("✅ Approve", key=f"appr_{r_id}", use_container_width=True):
+                    if st.button("✅ Approve", key=f"appr_{r_id}", use_container_width=True,
+                                 disabled=req_r not in VALID_ROLES or not u_id):
                         try:
-                            # 1. Update role_requests table
-                            supabase.table('role_requests').update({
+                            # 1. Close the request (only if it is still pending)
+                            done = supabase.table('role_requests').update({
                                 "status": "approved",
                                 "reviewed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                                 "reviewed_by": st.session_state.user_email
-                            }).eq('id', r_id).execute()
+                            }).eq('id', r_id).eq('status', 'pending').execute()
 
-                            # 2. Elevate user role in profiles table
-                            supabase.table('profiles').update({
-                                "role": req_r
-                            }).eq('user_id', u_id).execute()
-
-                            st.success(f"Approved {u_email} as {req_r}!")
+                            # 2. Elevate the role of the user who made the request
+                            if done.data:
+                                supabase.table('profiles').update({
+                                    "role": req_r
+                                }).eq('user_id', u_id).execute()
+                                SEC.info(f"role request approved by={st.session_state.user_email!r} "
+                                         f"user_id={u_id} email={u_email!r} new_role={req_r}")
+                                st.success(f"Approved {u_email} as {req_r}!")
                             st.rerun()
                         except Exception as act_err:
-                            st.error(f"Approval failed: {act_err}")
+                            db_error("approve the request", act_err)
 
                 with col_rej:
                     if st.button("❌ Reject", key=f"rej_{r_id}", use_container_width=True):
@@ -1538,11 +2153,13 @@ def render_role_requests():
                                 "status": "rejected",
                                 "reviewed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                                 "reviewed_by": st.session_state.user_email
-                            }).eq('id', r_id).execute()
+                            }).eq('id', r_id).eq('status', 'pending').execute()
+                            SEC.info(f"role request rejected by={st.session_state.user_email!r} "
+                                     f"user_id={u_id} email={u_email!r} requested={req_r}")
                             st.info(f"Rejected request for {u_email}.")
                             st.rerun()
                         except Exception as act_err:
-                            st.error(f"Rejection failed: {act_err}")
+                            db_error("reject the request", act_err)
 
     with tab_history:
         if not resolved:
@@ -1567,11 +2184,12 @@ def render_role_requests():
 if not st.session_state.get('authenticated', False):
     render_auth()
 else:
+    refresh_role()
     # Clean white sidebar
     with st.sidebar:
         user_email = st.session_state.get('user_email', '')
-        user_role = st.session_state.get('role', 'Student')
-        user_initial = (user_email[0].upper()) if user_email else "U"
+        user_role = safe_role(st.session_state.get('role', 'Student'))
+        user_initial = esc(user_email[0].upper()) if user_email else "U"
 
         st.markdown("""
             <div style="padding: 1.25rem 0.5rem 1rem 0.5rem; display: flex; align-items: center; gap: 0.75rem; border-bottom: 1px solid #E5EEFF; margin-bottom: 1rem;">
@@ -1627,10 +2245,13 @@ else:
                 </div>
                 <div style="display: flex; flex-direction: column; min-width: 0; flex: 1;">
                     <span style="font-weight: 600; color: #041534; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{html.escape(user_email)}</span>
-                    <span style="font-size: 11px; color: #45464E; font-weight: 500;">{user_role}</span>
+                    <span style="font-size: 11px; color: #45464E; font-weight: 500;">{esc(user_role)}</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
+
+        if st.session_state.get('offline_demo'):
+            st.warning("Offline demo mode — database not connected, nothing is saved.")
 
         # Role Upgrade Request UI (for non-Admin users)
         if user_role != 'Admin' and supabase:
@@ -1677,12 +2298,15 @@ else:
                                     "requested_role": req_role,
                                     "status": "pending"
                                 }).execute()
+                                SEC.info(f"role request submitted email={st.session_state.user_email!r} "
+                                         f"from={user_role} to={req_role}")
                                 st.success(f"Request for {req_role} submitted! An Administrator will review it.")
                                 st.rerun()
                         except Exception as req_err:
-                            st.error(f"Failed to submit request: {req_err}")
+                            db_error("submit the request", req_err)
 
         if st.button("Sign Out", use_container_width=True):
+            SEC.info(f"sign-out email={st.session_state.get('user_email')!r}")
             if supabase is not None:
                 try:
                     supabase.auth.sign_out()
@@ -1692,8 +2316,12 @@ else:
             st.session_state.user_id = ""
             st.session_state.user_email = ""
             st.session_state.role = ""
+            st.session_state.offline_demo = False
             st.session_state.chat_history = []
+            st.session_state.lab_messages = []
             st.session_state.predictions = {}
+            st.session_state.role_checked_at = 0
+            st.session_state.pop("sb_client", None)   # drop the signed-in database client entirely
             st.query_params.clear()
             st.rerun()
 

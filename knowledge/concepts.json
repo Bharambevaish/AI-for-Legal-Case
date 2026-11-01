@@ -1,0 +1,1175 @@
+[
+ {
+  "id": "ipc",
+  "term": "Indian Penal Code, 1860 (IPC)",
+  "aliases": [
+   "ipc",
+   "i.p.c",
+   "i.p.c.",
+   "indian penal code",
+   "indian penal code 1860",
+   "penal code",
+   "ipc 1860",
+   "indain penal code",
+   "indian penel code",
+   "what is ipc"
+  ],
+  "category": "Statutes",
+  "answer": "The Indian Penal Code, 1860 was India's main criminal law for over 160 years. It defined offences (murder, theft, cheating, etc.), general exceptions such as self-defence, and their punishments, in 511 sections. From 1 July 2024 it was replaced by the Bharatiya Nyaya Sanhita, 2023 (BNS), but the IPC still governs offences committed before that date. 'IPC to BNS conversion' means finding the new BNS section for an old IPC section using the official correspondence table: e.g. IPC 302 (murder punishment) is now BNS 103, IPC 420 (cheating) is BNS 318(4), and IPC 124A (sedition) has no direct equivalent.",
+  "old_law": "Indian Penal Code, 1860 (Act 45 of 1860)",
+  "new_law": "Bharatiya Nyaya Sanhita, 2023 (Act 45 of 2023)",
+  "source": "https://www.mha.gov.in/en/commoncontent/new-criminal-laws"
+ },
+ {
+  "id": "ipc_to_bns_conversion",
+  "term": "IPC to BNS conversion (correspondence table)",
+  "aliases": [
+   "ipc to bns",
+   "ipc bns conversion",
+   "ipc to bns conversion",
+   "ipc bns table",
+   "correspondence table",
+   "ipc bns mapping",
+   "convert ipc to bns",
+   "old section new section",
+   "ipc vs bns",
+   "bns ipc comparison",
+   "ipc to bns chart"
+  ],
+  "category": "Statutes",
+  "answer": "When the BNS replaced the IPC, most offences were kept but renumbered, merged or split into sub-sections, so the government published a correspondence table. Read each row as: old IPC section, matching BNS section, and a note on whether the text is the same, changed, new or deleted. Examples: IPC 34 to BNS 3(5), 120B to 61(2), 299 to 100, 300 to 101, 302 to 103, 307 to 109, 376 to 64, 379 to 303(2), 420 to 318(4), 498A to 85/86. New in BNS: organised crime (111) and mob lynching (103(2)). Deleted: sedition (IPC 124A). Use the IPC number for offences committed before 1 July 2024.",
+  "old_law": "Indian Penal Code, 1860",
+  "new_law": "Bharatiya Nyaya Sanhita, 2023",
+  "source": "https://www.mha.gov.in/sites/default/files/2024-04/250883_english_01042024.pdf"
+ },
+ {
+  "id": "bns",
+  "term": "Bharatiya Nyaya Sanhita, 2023 (BNS)",
+  "aliases": [
+   "bns",
+   "b.n.s",
+   "bharatiya nyaya sanhita",
+   "bhartiya nyay sanhita",
+   "bharatiya nyay sanhita",
+   "bns 2023",
+   "nyaya sanhita",
+   "new ipc",
+   "bhartiya nyaya sanhita"
+  ],
+  "category": "Statutes",
+  "answer": "The Bharatiya Nyaya Sanhita, 2023 is India's new substantive criminal code. It received Presidential assent on 25 December 2023 and replaced the IPC from 1 July 2024. It has 358 sections (the IPC had 511), largely carrying over IPC offences in a reorganised order. Key changes include new offences of organised crime and petty organised crime, a specific provision for murder by a group of five or more on grounds like race or caste (mob lynching), community service as a punishment for some petty offences, and removal of the sedition offence, with Section 152 now covering acts endangering India's sovereignty, unity and integrity.",
+  "old_law": "Indian Penal Code, 1860",
+  "new_law": "Bharatiya Nyaya Sanhita, 2023 (Act 45 of 2023)",
+  "source": "https://www.drishtiias.com/daily-updates/daily-news-analysis/new-criminal-laws-come-into-force/print_manually"
+ },
+ {
+  "id": "crpc",
+  "term": "Code of Criminal Procedure, 1973 (CrPC)",
+  "aliases": [
+   "crpc",
+   "cr.p.c",
+   "cr.p.c.",
+   "cr pc",
+   "code of criminal procedure",
+   "criminal procedure code",
+   "crpc 1973",
+   "crimnal procedure code"
+  ],
+  "category": "Statutes",
+  "answer": "The Code of Criminal Procedure, 1973 laid down how criminal law is enforced: registering FIRs, arrest, investigation, bail, charge sheets, trial, judgment, appeal and revision. It is a procedural law, while the IPC was the substantive law defining offences. From 1 July 2024 it was replaced by the Bharatiya Nagarik Suraksha Sanhita, 2023 (BNSS). However, any appeal, trial, inquiry or investigation pending immediately before that date continues under the CrPC, as if the BNSS had not come into force.",
+  "old_law": "Code of Criminal Procedure, 1973",
+  "new_law": "Bharatiya Nagarik Suraksha Sanhita, 2023; savings clause in Section 531",
+  "source": "https://lawx.in/acts/section/100/861/8013"
+ },
+ {
+  "id": "bnss",
+  "term": "Bharatiya Nagarik Suraksha Sanhita, 2023 (BNSS)",
+  "aliases": [
+   "bnss",
+   "b.n.s.s",
+   "bharatiya nagarik suraksha sanhita",
+   "bhartiya nagrik suraksha sanhita",
+   "nagarik suraksha sanhita",
+   "bnss 2023",
+   "new crpc",
+   "bharatiya nagrik suraksha sanhita"
+  ],
+  "category": "Statutes",
+  "answer": "The Bharatiya Nagarik Suraksha Sanhita, 2023 is India's new criminal procedure code, in force from 1 July 2024 in place of the CrPC. It has 531 sections. It keeps the basic CrPC structure (FIR, investigation, bail, trial, appeal) but adds statutory zero FIR and e-FIR, greater use of electronic and audio-video means, videography of search and seizure, and time limits for several stages. Section 531 repeals the CrPC but saves pending matters: cases pending before 1 July 2024 continue under the CrPC.",
+  "old_law": "Code of Criminal Procedure, 1973",
+  "new_law": "Bharatiya Nagarik Suraksha Sanhita, 2023 (Act 46 of 2023)",
+  "source": "https://lawx.in/acts/section/100/861/8013"
+ },
+ {
+  "id": "indian_evidence_act",
+  "term": "Indian Evidence Act, 1872 (IEA)",
+  "aliases": [
+   "indian evidence act",
+   "evidence act",
+   "iea",
+   "i.e.a",
+   "evidence act 1872",
+   "indian evidance act",
+   "law of evidence"
+  ],
+  "category": "Statutes",
+  "answer": "The Indian Evidence Act, 1872 set out the rules about what facts can be proved in court, how they are proved, who must prove them (burden of proof), and how witnesses are examined. It applied to both civil and criminal proceedings. It covered admissions, confessions, dying declarations, expert opinion, documentary and electronic evidence, presumptions and witness examination. From 1 July 2024 it was replaced by the Bharatiya Sakshya Adhiniyam, 2023 (BSA), which largely keeps its structure with renumbered sections.",
+  "old_law": "Indian Evidence Act, 1872",
+  "new_law": "Bharatiya Sakshya Adhiniyam, 2023",
+  "source": "https://keralaprisons.gov.in/userfiles/act-and-rules/comparison_summary_BSA_to_IEA.pdf"
+ },
+ {
+  "id": "bsa",
+  "term": "Bharatiya Sakshya Adhiniyam, 2023 (BSA)",
+  "aliases": [
+   "bsa",
+   "b.s.a",
+   "bharatiya sakshya adhiniyam",
+   "bhartiya sakshya adhiniyam",
+   "sakshya adhiniyam",
+   "bsa 2023",
+   "new evidence act",
+   "bharatiya sakshya"
+  ],
+  "category": "Statutes",
+  "answer": "The Bharatiya Sakshya Adhiniyam, 2023 replaced the Indian Evidence Act from 1 July 2024. It has 170 sections, with Section 170 dealing with repeal and savings. Most rules are carried over with new numbers, for example burden of proof moves from IEA 101 to BSA 104, and admissibility of electronic records from IEA 65B to BSA 63. Notable changes expand the definitions of 'document' and 'evidence' to expressly include electronic and digital records and statements given electronically.",
+  "old_law": "Indian Evidence Act, 1872",
+  "new_law": "Bharatiya Sakshya Adhiniyam, 2023 (Act 47 of 2023)",
+  "source": "https://keralaprisons.gov.in/userfiles/act-and-rules/comparison_summary_BSA_to_IEA.pdf"
+ },
+ {
+  "id": "criminal_law_transition_2024",
+  "term": "2024 criminal-law transition (old vs new laws)",
+  "aliases": [
+   "new criminal laws",
+   "three new criminal laws",
+   "1 july 2024",
+   "july 2024",
+   "transition",
+   "which law applies",
+   "old law or new law",
+   "ipc or bns",
+   "crpc or bnss",
+   "new laws 2024",
+   "criminal law reform",
+   "pending cases old law"
+  ],
+  "category": "Statutes",
+  "answer": "Three new laws came into force on 1 July 2024: the BNS (replacing the IPC), the BNSS (replacing the CrPC) and the BSA (replacing the Indian Evidence Act). Because a person can only be punished under the law in force when the act was done (Article 20(1)), offences committed before 1 July 2024 are still charged under the IPC, even if reported later. Under Section 531 of the BNSS, any appeal, trial, inquiry or investigation pending immediately before that date continues under the CrPC. So for the next several years courts will apply both old and new laws.",
+  "old_law": "IPC 1860, CrPC 1973, Indian Evidence Act 1872",
+  "new_law": "BNS 2023, BNSS 2023 (savings: Section 531), BSA 2023",
+  "source": "https://lawx.in/acts/section/100/861/8013"
+ },
+ {
+  "id": "constitution_of_india",
+  "term": "Constitution of India",
+  "aliases": [
+   "constitution",
+   "constitution of india",
+   "indian constitution",
+   "samvidhan",
+   "coi",
+   "constitutional law",
+   "fundamental rights",
+   "part iii"
+  ],
+  "category": "Constitutional law",
+  "answer": "The Constitution of India is the supreme law of the country, adopted on 26 November 1949 and in force from 26 January 1950. It sets up the Union and States, Parliament, the executive and the judiciary, and guarantees Fundamental Rights in Part III, such as equality (Article 14), protection in respect of conviction (Article 20) and life and personal liberty (Article 21). Any law, including criminal laws like the BNS or BNSS, that violates Fundamental Rights can be struck down by the Supreme Court (Article 32) or High Courts (Article 226).",
+  "old_law": null,
+  "new_law": null,
+  "source": "https://www.constitutionofindia.net/articles/article-32-remedies-for-enforcement-of-rights-conferred-by-this-part/"
+ },
+ {
+  "id": "fir",
+  "term": "First Information Report (FIR)",
+  "aliases": [
+   "fir",
+   "f.i.r",
+   "f.i.r.",
+   "first information report",
+   "first information reprt",
+   "police complaint",
+   "lodge fir",
+   "register fir",
+   "e-fir",
+   "efir",
+   "154 crpc",
+   "section 154",
+   "173 bnss",
+   "section 173 bnss"
+  ],
+  "category": "Criminal procedure",
+  "answer": "An FIR is the written record of the first information given to the police about a cognizable offence. It sets the criminal law in motion: once it is registered, police can start investigating. The officer in charge must record the information, read it over to the informant and give a free copy. Under the BNSS, information can also be given by electronic communication (e-FIR), which must be signed by the informant within three days. FIR was under Section 154 CrPC; it is now Section 173 BNSS.",
+  "old_law": "Section 154, Code of Criminal Procedure, 1973",
+  "new_law": "Section 173, Bharatiya Nagarik Suraksha Sanhita, 2023",
+  "source": "https://lawx.in/acts/section/100/861/7655"
+ },
+ {
+  "id": "zero_fir",
+  "term": "Zero FIR",
+  "aliases": [
+   "zero fir",
+   "0 fir",
+   "zero f.i.r",
+   "zerofir",
+   "fir in any police station",
+   "fir outside jurisdiction",
+   "173(1) bnss"
+  ],
+  "category": "Criminal procedure",
+  "answer": "A zero FIR is an FIR registered at any police station, regardless of where the offence happened. It is given the number 'zero' and then transferred to the police station that has jurisdiction. The idea came from case law and practice after the 2012 Delhi gang-rape case, so that victims do not lose time going to the 'correct' station. The BNSS now expressly provides that information about a cognizable offence must be recorded 'irrespective of the area where the offence is committed', making zero FIR statutory under Section 173(1).",
+  "old_law": "Not expressly in the CrPC (developed through practice and case law under Section 154)",
+  "new_law": "Section 173(1), Bharatiya Nagarik Suraksha Sanhita, 2023",
+  "source": "https://lawx.in/acts/section/100/861/7655"
+ },
+ {
+  "id": "cognizable_vs_non_cognizable",
+  "term": "Cognizable vs non-cognizable offence",
+  "aliases": [
+   "cognizable offence",
+   "cognisable offence",
+   "non-cognizable offence",
+   "non cognizable",
+   "noncognizable",
+   "cognizable",
+   "cognizable vs non cognizable",
+   "difference between cognizable and non cognizable",
+   "ncr",
+   "non cognizable report",
+   "2(c) crpc",
+   "2(l) crpc",
+   "2(1)(g) bnss"
+  ],
+  "category": "Criminal procedure",
+  "answer": "A cognizable offence is one where the police can arrest without a warrant and start investigating without a Magistrate's order, usually for serious crimes like murder, rape or robbery. A non-cognizable offence is one where the police have no authority to arrest without a warrant, typically minor offences; the police record the information and refer the informant to the Magistrate, and need the Magistrate's order to investigate. The First Schedule of the code says which category each offence falls in. Definitions: CrPC Section 2(c) and 2(l); BNSS Section 2(1)(g) and 2(1)(o).",
+  "old_law": "Sections 2(c) and 2(l), Code of Criminal Procedure, 1973",
+  "new_law": "Sections 2(1)(g) and 2(1)(o), Bharatiya Nagarik Suraksha Sanhita, 2023",
+  "source": "https://lawx.in/acts/section/100/861/7484"
+ },
+ {
+  "id": "bailable_vs_non_bailable",
+  "term": "Bailable vs non-bailable offence",
+  "aliases": [
+   "bailable offence",
+   "non-bailable offence",
+   "non bailable",
+   "nonbailable",
+   "bailable",
+   "bailable vs non bailable",
+   "difference between bailable and non bailable",
+   "2(a) crpc",
+   "2(1)(c) bnss"
+  ],
+  "category": "Criminal procedure",
+  "answer": "A bailable offence is one shown as bailable in the First Schedule (or made bailable by another law); the accused has a right to be released on bail on furnishing bail, and the police or court must grant it. Any other offence is non-bailable: bail is not a right but is at the court's discretion, considering factors like seriousness of the offence, risk of flight and possibility of tampering with evidence. 'Non-bailable' does not mean bail can never be granted. Definition: CrPC Section 2(a); BNSS Section 2(1)(c).",
+  "old_law": "Section 2(a), Code of Criminal Procedure, 1973",
+  "new_law": "Section 2(1)(c), Bharatiya Nagarik Suraksha Sanhita, 2023",
+  "source": "https://lawx.in/acts/section/100/861/7484"
+ },
+ {
+  "id": "bail",
+  "term": "Bail (regular bail)",
+  "aliases": [
+   "bail",
+   "regular bail",
+   "bail application",
+   "bail meaning",
+   "bale",
+   "bail in bailable offence",
+   "bail in non bailable offence",
+   "436 crpc",
+   "437 crpc",
+   "439 crpc",
+   "478 bnss",
+   "480 bnss",
+   "483 bnss"
+  ],
+  "category": "Criminal procedure",
+  "answer": "Bail is the release of an arrested or detained person, on a bond or surety, on the promise to appear before the court when required. In bailable offences bail is a right (CrPC 436, now BNSS 478). In non-bailable offences a Magistrate may grant bail at discretion (CrPC 437, now BNSS 480), and the High Court and Sessions Court have wider powers (CrPC 439, now BNSS 483). Courts often repeat that 'bail is the rule, jail the exception'. Separately, an undertrial who has served half the maximum sentence may be released under CrPC 436A, now BNSS 479.",
+  "old_law": "Sections 436, 436A, 437 and 439, Code of Criminal Procedure, 1973",
+  "new_law": "Sections 478, 479, 480 and 483, Bharatiya Nagarik Suraksha Sanhita, 2023",
+  "source": "https://vakeel360.com/crpc-to-bnss"
+ },
+ {
+  "id": "anticipatory_bail",
+  "term": "Anticipatory bail",
+  "aliases": [
+   "anticipatory bail",
+   "pre-arrest bail",
+   "pre arrest bail",
+   "advance bail",
+   "anticipatry bail",
+   "anticipatory bale",
+   "438 crpc",
+   "section 438",
+   "482 bnss",
+   "section 482 bnss"
+  ],
+  "category": "Criminal procedure",
+  "answer": "Anticipatory bail is a direction, given before arrest, that if the person is arrested they shall be released on bail. It can be sought from the High Court or Court of Session by someone who has reason to believe they may be arrested for a non-bailable offence. The court may impose conditions, such as joining the investigation or not leaving the country. It protects personal liberty against false or harassing arrests. It was in Section 438 CrPC and is now Section 482 BNSS. Note: Section 482 CrPC (inherent powers) is a different provision.",
+  "old_law": "Section 438, Code of Criminal Procedure, 1973",
+  "new_law": "Section 482, Bharatiya Nagarik Suraksha Sanhita, 2023",
+  "source": "https://lawx.in/acts/section/100/861/7964"
+ },
+ {
+  "id": "default_bail",
+  "term": "Default bail (statutory bail)",
+  "aliases": [
+   "default bail",
+   "statutory bail",
+   "compulsive bail",
+   "167(2) bail",
+   "167(2) crpc",
+   "187(3) bnss",
+   "bail after 60 days",
+   "bail after 90 days",
+   "chargesheet not filed bail"
+  ],
+  "category": "Criminal procedure",
+  "answer": "Default bail is an indefeasible right to bail that arises when police fail to complete investigation (file the charge sheet) within the maximum period of detention: 90 days for offences punishable with death, life imprisonment or ten years or more, and 60 days for other offences. If the period expires and the accused applies and is ready to furnish bail, the court must release them. It was under Section 167(2) CrPC and is now Section 187(3) BNSS. Special laws like UAPA or NDPS may allow longer periods.",
+  "old_law": "Section 167(2), Code of Criminal Procedure, 1973",
+  "new_law": "Section 187(3), Bharatiya Nagarik Suraksha Sanhita, 2023",
+  "source": "https://lawx.in/acts/section/100/861/7669"
+ },
+ {
+  "id": "charge_sheet",
+  "term": "Charge sheet (police report / final report)",
+  "aliases": [
+   "charge sheet",
+   "chargesheet",
+   "charge-sheet",
+   "challan",
+   "final report",
+   "police report",
+   "closure report",
+   "173 crpc",
+   "section 173 crpc",
+   "193 bnss",
+   "section 193"
+  ],
+  "category": "Criminal procedure",
+  "answer": "A charge sheet is the report the police file before the Magistrate on completing investigation. It names the accused, the offences, the evidence collected and witnesses. If police find no sufficient evidence, they file a closure (final) report instead, and the Magistrate decides whether to accept it. Filing of the charge sheet is what allows the court to take cognizance and begin the trial process. It was governed by Section 173 CrPC and is now Section 193 BNSS. Do not confuse it with the 'charge', which is framed later by the court.",
+  "old_law": "Section 173, Code of Criminal Procedure, 1973",
+  "new_law": "Section 193, Bharatiya Nagarik Suraksha Sanhita, 2023",
+  "source": "https://training.delhipolice.gov.in/PDF/PublicData/NOTICE_20240614145643825.pdf"
+ },
+ {
+  "id": "police_vs_judicial_custody",
+  "term": "Police custody vs judicial custody",
+  "aliases": [
+   "police custody",
+   "judicial custody",
+   "pc vs jc",
+   "police custody vs judicial custody",
+   "custody",
+   "lock up",
+   "jail custody",
+   "167 crpc",
+   "187 bnss"
+  ],
+  "category": "Criminal procedure",
+  "answer": "An arrested person must be produced before a Magistrate within 24 hours. The Magistrate may then remand them to police custody, where they stay in a police lock-up and can be questioned by investigators, or to judicial custody, where they are kept in jail under the court's control and police need court permission to question them. Police custody is limited to a total of 15 days. Under the BNSS these 15 days can be taken in parts during the early part of the 60 or 90-day detention period. Governed by Section 167 CrPC, now Section 187 BNSS.",
+  "old_law": "Section 167, Code of Criminal Procedure, 1973",
+  "new_law": "Section 187, Bharatiya Nagarik Suraksha Sanhita, 2023",
+  "source": "https://lawx.in/acts/section/100/861/7669"
+ },
+ {
+  "id": "remand",
+  "term": "Remand",
+  "aliases": [
+   "remand",
+   "remand order",
+   "police remand",
+   "judicial remand",
+   "remanded",
+   "remand meaning",
+   "167 crpc",
+   "309 crpc",
+   "187 bnss",
+   "346 bnss"
+  ],
+  "category": "Criminal procedure",
+  "answer": "Remand is a Magistrate's order authorising continued detention of an accused, either in police custody or judicial custody. During investigation, remand is given when investigation cannot be completed within 24 hours (Section 167 CrPC, now Section 187 BNSS). After cognizance, when a trial or inquiry is adjourned, the court may remand the accused to custody (Section 309 CrPC, now Section 346 BNSS). The Magistrate must apply their mind and record reasons; remand is not automatic.",
+  "old_law": "Sections 167 and 309, Code of Criminal Procedure, 1973",
+  "new_law": "Sections 187 and 346, Bharatiya Nagarik Suraksha Sanhita, 2023",
+  "source": "https://vakeel360.com/crpc-to-bnss"
+ },
+ {
+  "id": "acquittal_vs_discharge",
+  "term": "Acquittal vs discharge",
+  "aliases": [
+   "acquittal",
+   "acquitted",
+   "discharge",
+   "discharged",
+   "acquittal vs discharge",
+   "difference between acquittal and discharge",
+   "227 crpc",
+   "239 crpc",
+   "232 crpc",
+   "250 bnss",
+   "262 bnss",
+   "255 bnss"
+  ],
+  "category": "Criminal procedure",
+  "answer": "Discharge happens before trial: at the stage of framing charge, if the judge finds no sufficient ground to proceed against the accused, they are discharged and no charge is framed (Sessions case: CrPC 227, now BNSS 250; warrant case on police report: CrPC 239, now BNSS 262). Acquittal happens after trial (or after prosecution evidence): the court finds the prosecution failed to prove guilt and declares the accused not guilty (e.g. CrPC 232, now BNSS 255; judgment under CrPC 235, now BNSS 258). An acquittal bars a fresh trial for the same offence.",
+  "old_law": "Sections 227, 232, 235 and 239, Code of Criminal Procedure, 1973",
+  "new_law": "Sections 250, 255, 258 and 262, Bharatiya Nagarik Suraksha Sanhita, 2023",
+  "source": "https://vakeel360.com/crpc-to-bnss"
+ },
+ {
+  "id": "appeal",
+  "term": "Appeal",
+  "aliases": [
+   "appeal",
+   "criminal appeal",
+   "appeal against conviction",
+   "appeal against acquittal",
+   "appellate court",
+   "appeal meaning",
+   "374 crpc",
+   "415 bnss"
+  ],
+  "category": "Criminal procedure",
+  "answer": "An appeal is a request to a higher court to re-examine a lower court's decision on facts and law. In criminal cases there is no inherent right of appeal: it exists only where the statute provides it. A convicted person can appeal against conviction (Section 374 CrPC, now Section 415 BNSS); the State and, in some cases, the victim can appeal against acquittal or inadequate sentence. The appellate court can confirm, reverse or modify the decision, or order a retrial. Against High Court decisions, one may approach the Supreme Court, including by Special Leave Petition under Article 136.",
+  "old_law": "Section 374, Code of Criminal Procedure, 1973",
+  "new_law": "Section 415, Bharatiya Nagarik Suraksha Sanhita, 2023",
+  "source": "https://vakeel360.com/crpc-to-bnss"
+ },
+ {
+  "id": "revision",
+  "term": "Revision",
+  "aliases": [
+   "revision",
+   "criminal revision",
+   "revision petition",
+   "revisional jurisdiction",
+   "revision vs appeal",
+   "397 crpc",
+   "438 bnss"
+  ],
+  "category": "Criminal procedure",
+  "answer": "Revision is the power of the High Court or Sessions Court to call for and examine the record of a lower criminal court to check the correctness, legality or propriety of any finding, sentence or order, and the regularity of its proceedings. Unlike an appeal, it is not a right but a discretionary, supervisory power, mainly to correct jurisdictional errors or serious illegality, not to re-appreciate evidence. It does not lie against interlocutory orders. It was under Section 397 CrPC and is now Section 438 BNSS.",
+  "old_law": "Section 397, Code of Criminal Procedure, 1973",
+  "new_law": "Section 438, Bharatiya Nagarik Suraksha Sanhita, 2023",
+  "source": "https://vakeel360.com/crpc-to-bnss"
+ },
+ {
+  "id": "quashing",
+  "term": "Quashing of FIR / inherent powers of High Court",
+  "aliases": [
+   "quashing",
+   "quash fir",
+   "quashing of fir",
+   "quash",
+   "inherent powers",
+   "inherent power of high court",
+   "482 crpc",
+   "section 482 crpc",
+   "528 bnss",
+   "section 528"
+  ],
+  "category": "Criminal procedure",
+  "answer": "The High Court has inherent powers to make orders needed to give effect to the code, prevent abuse of the process of any court, or otherwise secure the ends of justice. Using this, it can quash an FIR, complaint or criminal proceeding, for example when the allegations, even if accepted, disclose no offence, or when a private dispute has been genuinely settled. The Supreme Court's guidelines in State of Haryana v. Bhajan Lal (1992) are commonly cited. This power was saved by Section 482 CrPC and is now Section 528 BNSS; High Courts can also act under Article 226.",
+  "old_law": "Section 482, Code of Criminal Procedure, 1973",
+  "new_law": "Section 528, Bharatiya Nagarik Suraksha Sanhita, 2023",
+  "source": "https://lawx.in/acts/section/100/861/8010"
+ },
+ {
+  "id": "plea_bargaining",
+  "term": "Plea bargaining",
+  "aliases": [
+   "plea bargaining",
+   "plea bargain",
+   "plea deal",
+   "guilty plea bargain",
+   "265a crpc",
+   "chapter xxia crpc",
+   "289 bnss"
+  ],
+  "category": "Criminal procedure",
+  "answer": "Plea bargaining lets an accused voluntarily plead guilty in exchange for a lesser sentence, after a mutually satisfactory disposition with the prosecution and victim. It applies only to offences punishable with imprisonment up to seven years, and not to offences affecting the socio-economic condition of the country or committed against a woman or a child below fourteen. It also does not apply to juveniles. It was introduced in 2005 as Chapter XXIA (Sections 265A to 265L) of the CrPC and is now in Sections 289 to 300 of the BNSS.",
+  "old_law": "Sections 265A to 265L (Chapter XXIA), Code of Criminal Procedure, 1973",
+  "new_law": "Sections 289 to 300, Bharatiya Nagarik Suraksha Sanhita, 2023",
+  "source": "https://lawx.in/acts/section/100/861/7771"
+ },
+ {
+  "id": "summons_vs_warrant",
+  "term": "Summons vs warrant",
+  "aliases": [
+   "summons",
+   "summon",
+   "warrant",
+   "arrest warrant",
+   "warrant of arrest",
+   "summons vs warrant",
+   "bailable warrant",
+   "non bailable warrant",
+   "nbw",
+   "summons case",
+   "warrant case",
+   "61 crpc",
+   "70 crpc",
+   "63 bnss",
+   "72 bnss"
+  ],
+  "category": "Criminal procedure",
+  "answer": "A summons is a written court order directing a person to appear (or produce a document) on a given date; it does not involve arrest. A warrant of arrest is a written order directing police to arrest a person and bring them before the court, used when a summons is ignored or the offence is serious. A warrant may be bailable (with a direction to release on bail) or non-bailable. Form of summons: CrPC 61, now BNSS 63. Form of warrant: CrPC 70, now BNSS 72. Separately, a 'warrant case' is one punishable with death, life or over two years' imprisonment; all others are 'summons cases'.",
+  "old_law": "Sections 61 and 70, Code of Criminal Procedure, 1973",
+  "new_law": "Sections 63 and 72, Bharatiya Nagarik Suraksha Sanhita, 2023",
+  "source": "https://lawx.in/acts/section/100/861/7554"
+ },
+ {
+  "id": "burden_of_proof",
+  "term": "Burden of proof",
+  "aliases": [
+   "burden of proof",
+   "onus of proof",
+   "onus",
+   "who must prove",
+   "burden of proving",
+   "101 evidence act",
+   "106 evidence act",
+   "104 bsa",
+   "109 bsa"
+  ],
+  "category": "Evidence",
+  "answer": "Burden of proof is the obligation to prove a fact. The general rule is that whoever wants the court to give judgment on facts they assert must prove those facts. In criminal cases the prosecution carries the burden of proving guilt beyond reasonable doubt. Some burdens shift: an accused claiming a general exception like self-defence must prove it, and a fact especially within someone's knowledge must be proved by that person. IEA Sections 101 to 106 now correspond to BSA Sections 104 to 109.",
+  "old_law": "Sections 101 to 106, Indian Evidence Act, 1872",
+  "new_law": "Sections 104 to 109, Bharatiya Sakshya Adhiniyam, 2023",
+  "source": "https://keralaprisons.gov.in/userfiles/act-and-rules/comparison_summary_BSA_to_IEA.pdf"
+ },
+ {
+  "id": "presumption_of_innocence",
+  "term": "Presumption of innocence",
+  "aliases": [
+   "presumption of innocence",
+   "innocent until proven guilty",
+   "innocent until proved guilty",
+   "presumed innocent",
+   "golden thread"
+  ],
+  "category": "Evidence",
+  "answer": "The presumption of innocence means an accused is treated as innocent until the prosecution proves guilt beyond reasonable doubt. It is not written as a single section in Indian statutes but is a basic principle of criminal law recognised by the Supreme Court and linked to fair trial under Article 21. It explains why the burden is on the prosecution and why doubt benefits the accused. An acquittal by the trial court is said to strengthen this presumption, so appellate courts reverse acquittals cautiously. Some special laws create reverse burdens, for example presumptions in dowry death cases.",
+  "old_law": null,
+  "new_law": null,
+  "source": null
+ },
+ {
+  "id": "beyond_reasonable_doubt",
+  "term": "Proof beyond reasonable doubt",
+  "aliases": [
+   "beyond reasonable doubt",
+   "beyond a reasonable doubt",
+   "reasonable doubt",
+   "benefit of doubt",
+   "standard of proof",
+   "brd",
+   "preponderance of probabilities"
+  ],
+  "category": "Evidence",
+  "answer": "Proof beyond reasonable doubt is the standard the prosecution must meet in criminal cases. The court must be sure of guilt; a doubt based on reason and evidence, not a fanciful or imaginary one, entitles the accused to acquittal, called the 'benefit of doubt'. It does not mean proof beyond all possible doubt. Civil cases use a lower standard, preponderance of probabilities (what is more likely true). When an accused must prove an exception, they usually only need to meet the civil standard.",
+  "old_law": null,
+  "new_law": null,
+  "source": null
+ },
+ {
+  "id": "circumstantial_evidence",
+  "term": "Circumstantial evidence",
+  "aliases": [
+   "circumstantial evidence",
+   "indirect evidence",
+   "chain of circumstances",
+   "five golden principles",
+   "panchsheel of circumstantial evidence",
+   "sharad birdhichand sarda",
+   "last seen theory"
+  ],
+  "category": "Evidence",
+  "answer": "Circumstantial evidence is indirect evidence: facts from which the court infers guilt, such as being last seen with the deceased, motive, recovery of a weapon, or conduct after the crime. A conviction can rest entirely on it, but the Supreme Court in Sharad Birdhichand Sarda v. State of Maharashtra (1984) laid down 'five golden principles': the circumstances must be fully established, consistent only with guilt, conclusive in nature, must exclude every other hypothesis, and must form a complete chain pointing to the accused. A missing link usually leads to acquittal.",
+  "old_law": null,
+  "new_law": null,
+  "source": null
+ },
+ {
+  "id": "dying_declaration",
+  "term": "Dying declaration",
+  "aliases": [
+   "dying declaration",
+   "dying statement",
+   "dying declaraton",
+   "statement of dead person",
+   "32 evidence act",
+   "32(1) evidence act",
+   "26 bsa"
+  ],
+  "category": "Evidence",
+  "answer": "A dying declaration is a statement made by a person about the cause of their death or the circumstances of the transaction that resulted in their death. Although it is hearsay and not tested by cross-examination, it is admissible because the person is dead, on the idea that a dying person is unlikely to lie. A conviction can be based solely on it if the court finds it true, voluntary and made in a fit state of mind; it is preferably recorded by a Magistrate. It was under Section 32 of the Indian Evidence Act and is now Section 26 of the BSA.",
+  "old_law": "Section 32(1), Indian Evidence Act, 1872",
+  "new_law": "Section 26, Bharatiya Sakshya Adhiniyam, 2023",
+  "source": "https://keralaprisons.gov.in/userfiles/act-and-rules/comparison_summary_BSA_to_IEA.pdf"
+ },
+ {
+  "id": "confession",
+  "term": "Confession (to police vs to Magistrate)",
+  "aliases": [
+   "confession",
+   "confession to police",
+   "confession before magistrate",
+   "judicial confession",
+   "extra judicial confession",
+   "164 statement",
+   "164 crpc",
+   "183 bnss",
+   "25 evidence act",
+   "26 evidence act",
+   "27 evidence act",
+   "23 bsa",
+   "discovery statement"
+  ],
+  "category": "Evidence",
+  "answer": "A confession is an admission by an accused that they committed the offence. A confession made to a police officer, or made while in police custody (unless before a Magistrate), cannot be proved against the accused (IEA 25 and 26, now BSA 23(1) and 23(2)). An exception allows proof of information from the accused that leads to discovery of a fact, such as a hidden weapon (IEA 27, now the proviso to BSA 23). A confession recorded by a Magistrate, after warning that it is voluntary and may be used as evidence, is admissible (CrPC 164, now BNSS 183). Confessions caused by threat or inducement are irrelevant.",
+  "old_law": "Sections 24 to 27, Indian Evidence Act, 1872; Section 164, CrPC 1973",
+  "new_law": "Sections 22 and 23, Bharatiya Sakshya Adhiniyam, 2023; Section 183, BNSS 2023",
+  "source": "https://keralaprisons.gov.in/userfiles/act-and-rules/comparison_summary_BSA_to_IEA.pdf"
+ },
+ {
+  "id": "hostile_witness",
+  "term": "Hostile witness",
+  "aliases": [
+   "hostile witness",
+   "witness turned hostile",
+   "turned hostile",
+   "hostile",
+   "adverse witness",
+   "154 evidence act",
+   "157 bsa"
+  ],
+  "category": "Evidence",
+  "answer": "A witness is called 'hostile' when they turn against the party that called them, for example a prosecution witness who changes their earlier statement in court. The court may then permit that party to put questions that could be put in cross-examination, including leading questions and confronting the witness with earlier statements. The law does not use the word 'hostile'; it speaks of questions by a party to its own witness. The testimony of a hostile witness is not wiped out; the court can rely on the parts it finds credible. IEA Section 154 is now BSA Section 157.",
+  "old_law": "Section 154, Indian Evidence Act, 1872",
+  "new_law": "Section 157, Bharatiya Sakshya Adhiniyam, 2023",
+  "source": "https://keralaprisons.gov.in/userfiles/act-and-rules/comparison_summary_BSA_to_IEA.pdf"
+ },
+ {
+  "id": "electronic_evidence",
+  "term": "Electronic evidence",
+  "aliases": [
+   "electronic evidence",
+   "digital evidence",
+   "electronic record",
+   "65b certificate",
+   "65b",
+   "section 65b",
+   "65b evidence act",
+   "63 bsa",
+   "whatsapp evidence",
+   "cctv evidence",
+   "cdr evidence"
+  ],
+  "category": "Evidence",
+  "answer": "Electronic evidence includes emails, CCTV footage, call records, WhatsApp chats and other electronic or digital records. A printout or copy of an electronic record is admissible as a document only if the conditions of the special provision are met, including a certificate about the device and how the record was produced. The Supreme Court held in Anvar P.V. v. P.K. Basheer (2014) and Arjun Panditrao Khotkar (2020) that this certificate is generally mandatory for secondary electronic evidence. IEA Sections 65A and 65B are now BSA Sections 62 and 63, and the BSA expressly treats electronic records as documents.",
+  "old_law": "Sections 65A and 65B, Indian Evidence Act, 1872",
+  "new_law": "Sections 62 and 63, Bharatiya Sakshya Adhiniyam, 2023",
+  "source": "https://keralaprisons.gov.in/userfiles/act-and-rules/comparison_summary_BSA_to_IEA.pdf"
+ },
+ {
+  "id": "mens_rea",
+  "term": "Mens rea",
+  "aliases": [
+   "mens rea",
+   "mensrea",
+   "mens-rea",
+   "guilty mind",
+   "criminal intention",
+   "intention",
+   "knowledge",
+   "actus non facit reum nisi mens sit rea"
+  ],
+  "category": "Substantive criminal law",
+  "answer": "Mens rea means 'guilty mind': the mental element required for a crime, such as intention, knowledge, rashness or negligence. It comes from the maxim 'actus non facit reum nisi mens sit rea' (an act is not guilty unless the mind is guilty). Indian penal law builds mens rea into each offence through words like 'intentionally', 'knowingly', 'dishonestly' or 'fraudulently'. Generally both mens rea and actus reus must be present. Some offences, especially in regulatory statutes, impose strict liability without mens rea.",
+  "old_law": null,
+  "new_law": null,
+  "source": null
+ },
+ {
+  "id": "actus_reus",
+  "term": "Actus reus",
+  "aliases": [
+   "actus reus",
+   "actusreus",
+   "guilty act",
+   "physical element of crime",
+   "act and omission",
+   "elements of crime"
+  ],
+  "category": "Substantive criminal law",
+  "answer": "Actus reus is the physical element of a crime: the prohibited act, illegal omission, or resulting consequence (for example, causing death in murder). It must usually be voluntary. Along with mens rea (guilty mind), it forms the two basic elements of criminal liability, and both must generally coincide in time. In Indian penal law, an 'act' includes a series of acts and an illegal omission can also amount to an offence, such as a parent deliberately not feeding a child.",
+  "old_law": null,
+  "new_law": null,
+  "source": null
+ },
+ {
+  "id": "common_intention",
+  "term": "Common intention",
+  "aliases": [
+   "common intention",
+   "section 34",
+   "34 ipc",
+   "ipc 34",
+   "3(5) bns",
+   "bns 3(5)",
+   "joint liability",
+   "constructive liability",
+   "common intension"
+  ],
+  "category": "Substantive criminal law",
+  "answer": "Common intention makes each of several persons liable for a criminal act done by all of them in furtherance of their shared intention, as if each had done it alone. It requires a prior meeting of minds (which can form on the spot) and participation in the act. It is a rule of joint liability, not a separate offence, so it is always read with a substantive offence, e.g. 'IPC 302 read with 34'. It differs from common object of an unlawful assembly. It was Section 34 IPC and is now Section 3(5) BNS.",
+  "old_law": "Section 34, Indian Penal Code, 1860",
+  "new_law": "Section 3(5), Bharatiya Nyaya Sanhita, 2023",
+  "source": "https://www.mha.gov.in/sites/default/files/2024-04/250883_english_01042024.pdf"
+ },
+ {
+  "id": "criminal_conspiracy",
+  "term": "Criminal conspiracy",
+  "aliases": [
+   "criminal conspiracy",
+   "conspiracy",
+   "120a ipc",
+   "120b ipc",
+   "120 b",
+   "ipc 120b",
+   "61 bns",
+   "61(2) bns",
+   "bns 61"
+  ],
+  "category": "Substantive criminal law",
+  "answer": "Criminal conspiracy is an agreement between two or more persons to do, or cause to be done, an illegal act, or a legal act by illegal means. Where the agreement is to commit an offence, the agreement itself is punishable even if the offence is never committed; for other cases some act beyond the agreement is needed. Conspiracy is usually proved by circumstantial evidence since agreements are secret. The definition was in IPC 120A and punishment in IPC 120B; both are now in Section 61 BNS (definition 61(1), punishment 61(2)).",
+  "old_law": "Sections 120A and 120B, Indian Penal Code, 1860",
+  "new_law": "Section 61(1) and 61(2), Bharatiya Nyaya Sanhita, 2023",
+  "source": "https://www.mha.gov.in/sites/default/files/2024-04/250883_english_01042024.pdf"
+ },
+ {
+  "id": "culpable_homicide_vs_murder",
+  "term": "Culpable homicide vs murder",
+  "aliases": [
+   "culpable homicide",
+   "murder",
+   "culpable homicide vs murder",
+   "difference between murder and culpable homicide",
+   "299 ipc",
+   "300 ipc",
+   "302 ipc",
+   "304 ipc",
+   "100 bns",
+   "101 bns",
+   "103 bns",
+   "105 bns",
+   "homicide"
+  ],
+  "category": "Substantive criminal law",
+  "answer": "Culpable homicide is causing death with the intention of causing death or likely-fatal bodily injury, or with knowledge that the act is likely to cause death. Murder is an aggravated form: all murder is culpable homicide, but not vice versa. It becomes murder when the intention or knowledge is of a higher degree (e.g. injury sufficient in the ordinary course of nature to cause death), unless an exception applies, such as grave and sudden provocation or private defence exceeded in good faith. Definitions: IPC 299 and 300, now BNS 100 and 101. Punishment: murder IPC 302, now BNS 103; culpable homicide not amounting to murder IPC 304, now BNS 105.",
+  "old_law": "Sections 299, 300, 302 and 304, Indian Penal Code, 1860",
+  "new_law": "Sections 100, 101, 103 and 105, Bharatiya Nyaya Sanhita, 2023",
+  "source": "https://www.mha.gov.in/sites/default/files/2024-04/250883_english_01042024.pdf"
+ },
+ {
+  "id": "abetment",
+  "term": "Abetment",
+  "aliases": [
+   "abetment",
+   "abettor",
+   "abet",
+   "aiding",
+   "instigation",
+   "107 ipc",
+   "108 ipc",
+   "109 ipc",
+   "45 bns",
+   "46 bns",
+   "49 bns"
+  ],
+  "category": "Substantive criminal law",
+  "answer": "Abetment means helping or encouraging another person to commit an offence. A person abets by instigating it, engaging in a conspiracy for it (where some act follows), or intentionally aiding it by act or illegal omission. The abettor is liable even if the main offence is not committed, in many cases. Where the abetted act is committed as a result, the abettor generally gets the same punishment as for the offence. 'Abetment of a thing' was IPC 107 (now BNS 45), 'abettor' IPC 108 (now BNS 46), and punishment IPC 109 (now BNS 49).",
+  "old_law": "Sections 107, 108 and 109, Indian Penal Code, 1860",
+  "new_law": "Sections 45, 46 and 49, Bharatiya Nyaya Sanhita, 2023",
+  "source": "https://www.mha.gov.in/sites/default/files/2024-04/250883_english_01042024.pdf"
+ },
+ {
+  "id": "attempt",
+  "term": "Attempt to commit an offence",
+  "aliases": [
+   "attempt",
+   "criminal attempt",
+   "attempt to commit offence",
+   "attempt to murder",
+   "511 ipc",
+   "307 ipc",
+   "62 bns",
+   "109 bns",
+   "stages of crime",
+   "preparation vs attempt"
+  ],
+  "category": "Substantive criminal law",
+  "answer": "A crime usually passes through four stages: intention, preparation, attempt and commission. Mere intention and, generally, preparation are not punished; an attempt is, because the person has gone beyond preparation and taken a direct step towards committing the offence which fails for some reason. The general provision punishes attempts with up to half of the longest imprisonment for the offence (IPC 511, now BNS 62). Some attempts have their own sections, such as attempt to murder (IPC 307, now BNS 109).",
+  "old_law": "Sections 511 and 307, Indian Penal Code, 1860",
+  "new_law": "Sections 62 and 109, Bharatiya Nyaya Sanhita, 2023",
+  "source": "https://www.mha.gov.in/sites/default/files/2024-04/250883_english_01042024.pdf"
+ },
+ {
+  "id": "sedition",
+  "term": "Sedition (IPC 124A) and BNS 152",
+  "aliases": [
+   "sedition",
+   "124a",
+   "124a ipc",
+   "ipc 124a",
+   "rajdroh",
+   "deshdroh",
+   "152 bns",
+   "bns 152",
+   "sedition law",
+   "sedition removed"
+  ],
+  "category": "Substantive criminal law",
+  "answer": "Sedition under IPC Section 124A punished bringing or attempting to bring hatred, contempt or disaffection towards the Government established by law. In 2022 the Supreme Court put its use on hold pending review. The BNS does not contain a sedition offence. The nearest provision is BNS Section 152, 'Act endangering sovereignty, unity and integrity of India', which punishes purposely or knowingly exciting secession, armed rebellion or subversive activities, or encouraging separatist feelings, or endangering India's sovereignty, unity and integrity, with life imprisonment or up to seven years plus fine. It targets acts against the nation rather than criticism of the government.",
+  "old_law": "Section 124A, Indian Penal Code, 1860 (no direct BNS equivalent)",
+  "new_law": "Section 152, Bharatiya Nyaya Sanhita, 2023 (nearest provision)",
+  "source": "https://lawx.in/acts/section/99/835/7276"
+ },
+ {
+  "id": "organised_crime",
+  "term": "Organised crime (new in BNS)",
+  "aliases": [
+   "organised crime",
+   "organized crime",
+   "111 bns",
+   "bns 111",
+   "petty organised crime",
+   "112 bns",
+   "crime syndicate",
+   "gang crime"
+  ],
+  "category": "Substantive criminal law",
+  "answer": "Organised crime is a new offence in the BNS with no IPC equivalent; earlier it was covered only by state laws such as MCOCA. Section 111 covers continuing unlawful activity such as kidnapping, robbery, vehicle theft, extortion, land grabbing, contract killing, economic offences and cyber-crimes carried out by a member of, or on behalf of, an organised crime syndicate using violence, threats, intimidation or other unlawful means for material benefit. Section 112 separately punishes 'petty organised crime', such as organised theft, snatching or pickpocketing by groups.",
+  "old_law": null,
+  "new_law": "Sections 111 and 112, Bharatiya Nyaya Sanhita, 2023",
+  "source": "https://lawx.in/acts/section/99/835/7235"
+ },
+ {
+  "id": "mob_lynching",
+  "term": "Mob lynching (murder by a group)",
+  "aliases": [
+   "mob lynching",
+   "lynching",
+   "mob killing",
+   "103(2) bns",
+   "bns 103(2)",
+   "group murder",
+   "murder by five or more persons"
+  ],
+  "category": "Substantive criminal law",
+  "answer": "The BNS for the first time specifically addresses mob lynching. Under Section 103(2), when a group of five or more persons acting in concert commits murder on the ground of race, caste or community, sex, place of birth, language, personal belief or any other similar ground, each member of the group is punishable with death or life imprisonment, and fine. The IPC had no specific provision; such killings were prosecuted as ordinary murder (IPC 302) with common intention or unlawful assembly provisions. The Supreme Court had earlier called for a separate law in Tehseen Poonawalla v. Union of India (2018).",
+  "old_law": "No specific provision (prosecuted under Section 302 read with Section 34/149, IPC)",
+  "new_law": "Section 103(2), Bharatiya Nyaya Sanhita, 2023",
+  "source": "https://www.mha.gov.in/sites/default/files/2024-04/250883_english_01042024.pdf"
+ },
+ {
+  "id": "article_21",
+  "term": "Article 21 - Right to life and personal liberty",
+  "aliases": [
+   "article 21",
+   "art 21",
+   "art. 21",
+   "right to life",
+   "personal liberty",
+   "right to life and personal liberty",
+   "procedure established by law",
+   "maneka gandhi"
+  ],
+  "category": "Constitutional law",
+  "answer": "Article 21 says no person shall be deprived of life or personal liberty except according to procedure established by law. After Maneka Gandhi v. Union of India (1978), that procedure must be just, fair and reasonable, not arbitrary. Courts have read many rights into it, including speedy trial, free legal aid, a fair trial, privacy (Puttaswamy, 2017), dignity, and protection against custodial violence. In criminal law it is the basis for safeguards on arrest, bail and detention. It applies to every person, citizen or not.",
+  "old_law": null,
+  "new_law": "Article 21, Constitution of India",
+  "source": "https://www.constitutionofindia.net/articles/article-21-protection-of-life-and-personal-liberty/"
+ },
+ {
+  "id": "article_14",
+  "term": "Article 14 - Equality before law",
+  "aliases": [
+   "article 14",
+   "art 14",
+   "art. 14",
+   "equality before law",
+   "equal protection of laws",
+   "right to equality",
+   "reasonable classification",
+   "arbitrariness"
+  ],
+  "category": "Constitutional law",
+  "answer": "Article 14 says the State shall not deny to any person equality before the law or the equal protection of the laws within India. Equality before law means no one is above the law; equal protection means equals must be treated equally. It permits reasonable classification if the classification has an intelligible differentia and a rational nexus with the law's object. Since E.P. Royappa (1974), arbitrary State action is also treated as violating Article 14. It applies to all persons, not just citizens.",
+  "old_law": null,
+  "new_law": "Article 14, Constitution of India",
+  "source": "https://www.constitutionofindia.net/articles/article-14-equality-before-law/"
+ },
+ {
+  "id": "article_32_vs_226",
+  "term": "Article 32 vs Article 226 (writ jurisdiction)",
+  "aliases": [
+   "article 32",
+   "article 226",
+   "art 32",
+   "art 226",
+   "article 32 vs 226",
+   "writ petition",
+   "writ jurisdiction",
+   "heart and soul of constitution",
+   "difference between article 32 and 226"
+  ],
+  "category": "Constitutional law",
+  "answer": "Article 32 lets a person move the Supreme Court directly to enforce Fundamental Rights; Dr. Ambedkar called it the 'heart and soul' of the Constitution, and it is itself a Fundamental Right. Article 226 empowers High Courts to issue writs to enforce Fundamental Rights and also 'for any other purpose', such as legal rights, so it is wider in scope. However, Article 226 is discretionary, while the Supreme Court is bound to hear genuine Article 32 claims. Both courts can issue habeas corpus, mandamus, prohibition, quo warranto and certiorari.",
+  "old_law": null,
+  "new_law": "Articles 32 and 226, Constitution of India",
+  "source": "https://www.constitutionofindia.net/articles/article-226-power-of-high-courts-to-issue-certain-writs/"
+ },
+ {
+  "id": "writs",
+  "term": "The five writs",
+  "aliases": [
+   "writs",
+   "five writs",
+   "types of writs",
+   "writ",
+   "mandamus",
+   "certiorari",
+   "prohibition",
+   "quo warranto",
+   "quo-warranto",
+   "writ of mandamus",
+   "writ of certiorari",
+   "writ of prohibition"
+  ],
+  "category": "Constitutional law",
+  "answer": "The Constitution names five writs that the Supreme Court (Article 32) and High Courts (Article 226) can issue. Habeas corpus ('have the body') orders production of a detained person to test whether the detention is lawful. Mandamus ('we command') directs a public authority to perform a legal duty. Prohibition stops a lower court or tribunal from acting beyond its jurisdiction while proceedings are pending. Certiorari quashes an order already passed by a lower court or tribunal without jurisdiction or with an error of law. Quo warranto ('by what authority') asks a person holding a public office to show their legal right to it.",
+  "old_law": null,
+  "new_law": "Articles 32(2) and 226, Constitution of India",
+  "source": "https://www.constitutionofindia.net/articles/article-32-remedies-for-enforcement-of-rights-conferred-by-this-part/"
+ },
+ {
+  "id": "habeas_corpus",
+  "term": "Habeas corpus",
+  "aliases": [
+   "habeas corpus",
+   "habeus corpus",
+   "habeas corpas",
+   "hebeas corpus",
+   "illegal detention writ",
+   "produce the body"
+  ],
+  "category": "Constitutional law",
+  "answer": "Habeas corpus, Latin for 'you may have the body', is a writ directing a person or authority holding someone in custody to produce that person before the court so it can examine whether the detention is lawful. If the detention is illegal, the court orders release. It protects personal liberty under Article 21 and can be filed in the Supreme Court (Article 32) or a High Court (Article 226), even by a relative or friend on the detainee's behalf. It can be issued against both the State and private persons.",
+  "old_law": null,
+  "new_law": "Articles 32 and 226, Constitution of India",
+  "source": "https://www.constitutionofindia.net/articles/article-32-remedies-for-enforcement-of-rights-conferred-by-this-part/"
+ },
+ {
+  "id": "pil",
+  "term": "Public Interest Litigation (PIL)",
+  "aliases": [
+   "pil",
+   "p.i.l",
+   "public interest litigation",
+   "public interest petition",
+   "social action litigation",
+   "locus standi",
+   "epistolary jurisdiction"
+  ],
+  "category": "Constitutional law",
+  "answer": "Public Interest Litigation lets any public-spirited person or organisation approach the Supreme Court (Article 32) or a High Court (Article 226) on behalf of people who cannot approach the court themselves, such as prisoners, bonded labourers or the poor, or on matters affecting the public at large like the environment. It relaxed the traditional rule of locus standi; courts have even treated letters as petitions. It developed in the late 1970s and 1980s through judges like Justice P.N. Bhagwati and Justice V.R. Krishna Iyer (e.g. S.P. Gupta v. Union of India, 1981). Courts discourage PILs filed for private, political or publicity motives.",
+  "old_law": null,
+  "new_law": "Articles 32 and 226, Constitution of India",
+  "source": "https://www.constitutionofindia.net/articles/article-226-power-of-high-courts-to-issue-certain-writs/"
+ },
+ {
+  "id": "special_leave_petition",
+  "term": "Special Leave Petition (SLP)",
+  "aliases": [
+   "slp",
+   "s.l.p",
+   "special leave petition",
+   "special leave to appeal",
+   "article 136",
+   "art 136",
+   "slp criminal",
+   "slp civil"
+  ],
+  "category": "Constitutional law",
+  "answer": "A Special Leave Petition asks the Supreme Court for permission ('special leave') to appeal against any judgment, decree, sentence or order of any court or tribunal in India (except military tribunals). Under Article 136 this is a purely discretionary power: there is no right to special leave. The Court usually grants it only where a substantial question of law or a grave injustice is involved. If leave is granted, the SLP is converted into a regular appeal; if refused, it is 'dismissed in limine'.",
+  "old_law": null,
+  "new_law": "Article 136, Constitution of India",
+  "source": "https://www.constitutionofindia.net/articles/article-136-special-leave-to-appeal-by-the-supreme-court/"
+ },
+ {
+  "id": "hierarchy_of_courts",
+  "term": "Hierarchy of courts in India",
+  "aliases": [
+   "hierarchy of courts",
+   "court hierarchy",
+   "court system in india",
+   "structure of courts",
+   "classes of criminal courts",
+   "sessions court",
+   "magistrate court",
+   "high court",
+   "supreme court",
+   "district court",
+   "jmfc"
+  ],
+  "category": "Courts",
+  "answer": "India has a single integrated judiciary. The Supreme Court (Article 124) is at the top, and its law binds all courts (Article 141). Below it are the High Courts of the States (Article 214). On the criminal side, below each High Court are the Courts of Session, then Judicial Magistrates of the first class and second class; Executive Magistrates also exist for certain functions (BNSS Section 6, earlier CrPC Section 6). The BNSS dropped the separate category of Metropolitan Magistrates. On the civil side, District Judges sit above civil judges.",
+  "old_law": "Section 6, Code of Criminal Procedure, 1973",
+  "new_law": "Section 6, Bharatiya Nagarik Suraksha Sanhita, 2023; Articles 124, 141 and 214, Constitution of India",
+  "source": "https://lawx.in/acts/section/100/861/7488"
+ },
+ {
+  "id": "ratio_decidendi",
+  "term": "Ratio decidendi",
+  "aliases": [
+   "ratio decidendi",
+   "ratio",
+   "ratio decedendi",
+   "ratio decidendi meaning",
+   "reason for decision",
+   "binding part of judgment"
+  ],
+  "category": "Case-law reading",
+  "answer": "Ratio decidendi ('the reason for the decision') is the legal principle on which a court decides the case, applied to its material facts. It is the binding part of a judgment for later courts under the doctrine of precedent. To find it, ask what rule of law was necessary to reach the result: remove reasoning that was not needed and what remains is usually the ratio. A judgment can have more than one ratio. Everything else said in passing is obiter dicta.",
+  "old_law": null,
+  "new_law": null,
+  "source": null
+ },
+ {
+  "id": "obiter_dicta",
+  "term": "Obiter dicta",
+  "aliases": [
+   "obiter dicta",
+   "obiter dictum",
+   "obiter",
+   "obitor dicta",
+   "said in passing",
+   "remarks in passing"
+  ],
+  "category": "Case-law reading",
+  "answer": "Obiter dicta ('things said by the way') are observations in a judgment that were not necessary to decide the case, such as comments on hypothetical facts or general remarks on the law. They are not binding as precedent, but they can be persuasive, depending on the court's standing. In India, obiter dicta of the Supreme Court are generally given great weight and are often followed by High Courts and lower courts.",
+  "old_law": null,
+  "new_law": null,
+  "source": null
+ },
+ {
+  "id": "precedent",
+  "term": "Precedent and stare decisis",
+  "aliases": [
+   "precedent",
+   "stare decisis",
+   "judicial precedent",
+   "binding precedent",
+   "persuasive precedent",
+   "article 141",
+   "per incuriam",
+   "doctrine of precedent",
+   "case law"
+  ],
+  "category": "Case-law reading",
+  "answer": "Precedent means earlier judicial decisions that guide or bind later courts. Stare decisis ('to stand by things decided') is the doctrine that courts should follow settled decisions on the same point of law. In India, the law declared by the Supreme Court binds all courts (Article 141), High Court decisions bind courts below them in that state, and a smaller bench is bound by a larger bench of the same court. Decisions of other High Courts are only persuasive. A decision given per incuriam (ignoring a binding law or precedent) is not binding.",
+  "old_law": null,
+  "new_law": "Article 141, Constitution of India",
+  "source": "https://www.constitutionofindia.net/articles/article-141-law-declared-by-supreme-court-to-be-binding-on-all-courts/"
+ },
+ {
+  "id": "res_judicata",
+  "term": "Res judicata",
+  "aliases": [
+   "res judicata",
+   "res judicta",
+   "res-judicata",
+   "resjudicata",
+   "section 11 cpc",
+   "11 cpc",
+   "double jeopardy",
+   "autrefois acquit",
+   "article 20(2)"
+  ],
+  "category": "Case-law reading",
+  "answer": "Res judicata ('a matter already decided') means that once a competent court has finally decided an issue between the same parties, they cannot litigate the same issue again. In civil law it is codified in Section 11 of the Code of Civil Procedure, 1908. Its purpose is finality and avoiding repeated litigation. In criminal law the similar idea is the bar on double jeopardy: Article 20(2) says no person shall be prosecuted and punished for the same offence more than once.",
+  "old_law": "Section 11, Code of Civil Procedure, 1908; Article 20(2), Constitution of India",
+  "new_law": null,
+  "source": "https://www.advocatekhoj.com/library/bareacts/codeofcivilprocedure/11.php"
+ },
+ {
+  "id": "appeal_outcomes",
+  "term": "Appeal allowed vs dismissed vs partly allowed",
+  "aliases": [
+   "appeal allowed",
+   "appeal dismissed",
+   "partly allowed",
+   "partially allowed",
+   "appeal partly allowed",
+   "allowed",
+   "dismissed",
+   "verdict meaning",
+   "what does appeal allowed mean",
+   "disposed of",
+   "set aside",
+   "upheld",
+   "remanded back"
+  ],
+  "category": "Case-law reading",
+  "answer": "These phrases describe the result of an appeal from the appellant's (the person who appealed) point of view. 'Appeal allowed' means the appellant won: the lower court's decision is set aside or reversed, for example a conviction overturned. 'Appeal dismissed' means the appellant lost: the lower court's decision is upheld. 'Partly allowed' means the appellant won on some points, for example conviction maintained but sentence reduced, or conviction changed to a lesser offence. Always check who the appellant is (accused or State) before reading the outcome.",
+  "old_law": null,
+  "new_law": null,
+  "source": null
+ },
+ {
+  "id": "private_defence",
+  "term": "Right of private defence",
+  "aliases": [
+   "private defence",
+   "private defense",
+   "right of private defence",
+   "right of private defense",
+   "self defence",
+   "self-defence",
+   "self defense",
+   "96 ipc",
+   "97 ipc",
+   "100 ipc",
+   "34 bns"
+  ],
+  "category": "Substantive criminal law",
+  "answer": "Private defence is the legal right to use reasonable force to protect your own or another person's body, or property, against an unlawful attack. It is a general exception, so an act done in genuine private defence is not an offence. The force used must be proportionate and there is no right of private defence where there is time to seek help from public authorities. In extreme cases, such as a reasonable fear of death, grievous hurt, rape or kidnapping, it can extend to causing death. Under the IPC it was in Sections 96–106; in the BNS it is Sections 34–44.",
+  "old_law": "Sections 96–106, Indian Penal Code, 1860",
+  "new_law": "Sections 34–44, Bharatiya Nyaya Sanhita, 2023",
+  "source": "https://www.mha.gov.in/sites/default/files/2024-04/250883_english_01042024.pdf"
+ },
+ {
+  "id": "compoundable_offence",
+  "term": "Compoundable offence",
+  "aliases": [
+   "compoundable offence",
+   "compoundable offense",
+   "compoundable",
+   "non compoundable",
+   "non-compoundable",
+   "compounding",
+   "compounding of offences",
+   "compromise in criminal case",
+   "320 crpc",
+   "359 bnss"
+  ],
+  "category": "Criminal procedure",
+  "answer": "A compoundable offence is one where the victim can settle (compound) the case with the accused, and the settlement has the effect of an acquittal. Some minor offences can be compounded directly by the victim; others only with the court's permission. Serious offences such as murder or rape are non-compoundable, so a private compromise does not end the case, although a High Court may sometimes quash such proceedings using its inherent powers. The list of compoundable offences was in Section 320 of the CrPC and is now in Section 359 of the BNSS.",
+  "old_law": "Section 320, Code of Criminal Procedure, 1973",
+  "new_law": "Section 359, Bharatiya Nagarik Suraksha Sanhita, 2023",
+  "source": "https://courtbook.in/bnss/section-359"
+ }
+]

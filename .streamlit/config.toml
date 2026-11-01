@@ -6,5 +6,27 @@ secondaryBackgroundColor="#FFFFFF"
 textColor="#0F172A"
 font="sans serif"
 
+[client]
+# OWASP A05: never show stack traces or exception details in the browser.
+# Full details still go to the terminal log.
+showErrorDetails = "none"
+# Hide developer options (rerun, clear cache, deploy) from visitors.
+toolbarMode = "viewer"
+
 [server]
 headless = true
+
+# Do not watch files for changes: avoids reloads (and slow torch scans) during the demo
+fileWatcherType = "none"
+
+# Court judgments are a few MB at most; reject huge uploads with a clear message
+maxUploadSize = 50
+maxMessageSize = 200
+
+# OWASP A01/A05: keep Streamlit's cross-site request forgery and CORS protection on
+# (these are the defaults; set explicitly so nobody switches them off by accident).
+enableXsrfProtection = true
+enableCORS = true
+
+[browser]
+gatherUsageStats = false
