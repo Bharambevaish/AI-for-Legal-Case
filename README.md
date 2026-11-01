@@ -74,8 +74,6 @@ Guided by: Dr. Shefali Sonavane
 
 Institution: Department of Information Technology, Walchand College of Engineering, Sangli (Academic year 2026–27)
 
-Acknowledgment: the fine-tuned InLegalBERT checkpoints were trained by Nikhil Raghuwanshi and team (original repo: [Nick1027/legal-case-outcome-predictor](https://huggingface.co/Nick1027/legal-case-outcome-predictor)) and are mirrored at vaishnavi1011/legal-case-outcome-predictor with their permission; InLegalBERT itself is by law-ai.
-
 🔮 Future Scope
 BNS Translation: Transitioning from IPC to Bharatiya Nyaya Sanhita (BNS).
 
