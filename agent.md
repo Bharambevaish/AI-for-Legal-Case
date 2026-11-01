@@ -63,15 +63,8 @@ AI-for-Legal-Case/
 │   ├── Module_B/Final/         # Jurisdiction classifier (config.json, model.safetensors, tokenizer files)
 │   └── Module_C/Final/         # Outcome predictor (config.json, model.safetensors, tokenizer files)
 │
-├── Model Test pdfs/            # Sample Supreme Court / High Court judgments for manual testing
-│
-└── Documents/                  # Academic and presentation material (not used at runtime)
-    ├── Research paper doc/     # Papers, blackbook chapters, figures, architecture diagrams, poster
-    ├── Front end SS/           # Screenshots of the interface
-    ├── BTech project Final Black book report format 24-25-1.docx
+└── Documents/                  # Reference material (not used at runtime)
     ├── BNS_IPC_Comparative.pdf
-    ├── In our word or reseach paper.docx
-    ├── Issues face while making project-.txt
     ├── 🎤 Final Year Project Presentation Script.docx
     └── diagnostic_report.md    # Older diagnostic report (superseded by eval_harness/RESULTS.md)
 ```

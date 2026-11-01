@@ -73,7 +73,7 @@ After creating the virtual environment once (step 2 below), double-click [run_de
    python -m streamlit run app.py
    ```
 
-   Open http://localhost:8501, sign in, upload a judgment PDF in **Case Predictor**, and optionally click **Generate AI Decision Drivers**. Sample judgments are in [Model Test pdfs/](<Model Test pdfs/>).
+   Open http://localhost:8501, sign in, upload a judgment PDF in **Case Predictor**, and optionally click **Generate AI Decision Drivers**. Use any Indian court judgment PDF (for example from [indiankanoon.org](https://indiankanoon.org)).
 
 ---
 
@@ -85,7 +85,7 @@ The **IPC-BNS Lab** page is a study chatbot for law students. It is free and wor
 | --- | --- | --- |
 | IPC ↔ BNS sections, both directions, including deleted and new sections | [`knowledge/statutes.json`](knowledge/statutes.json): 543 rows parsed from the official correspondence table (`Documents/BNS_IPC_Comparative.pdf`) by [`scripts/build_statutes.py`](scripts/build_statutes.py) | "what is 302 IPC in BNS?", "BNS 103 is which IPC section?" |
 | Legal concepts, with old and new provisions and a source link | [`knowledge/concepts.json`](knowledge/concepts.json): 58 entries | "explain anticipatory bail", "murder vs culpable homicide" |
-| Similar past judgments, with their real verdict and the court's final order | 124 judgments (`eval_harness/benchmark_cohort.csv` + `Model Test pdfs/`) | "conviction based only on circumstantial evidence" |
+| Similar past judgments, with their real verdict and the court's final order | the benchmark judgments (`eval_harness/benchmark_cohort.csv`, kept locally) plus any you add | "conviction based only on circumstantial evidence" |
 
 It also handles greetings, follow-ups ("what about 307?", "tell me more about the first case"), typos, off-topic questions, and requests for help breaking the law (refused, with lawful options).
 
