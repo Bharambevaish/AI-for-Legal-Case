@@ -392,10 +392,18 @@ def _check_supabase_health(url: str, key: str) -> bool:
         return False
 
 def _get_secret(name):
+    """Read a setting from .streamlit/secrets.toml, or from an environment variable.
+
+    Locally the values live in secrets.toml; on a cloud host (Azure App Service, Docker, ...)
+    they are passed as environment variables ("App settings"), so both are checked.
+    """
     try:
-        return st.secrets.get(name)
+        value = st.secrets.get(name)
+        if value:
+            return value
     except Exception:
-        return None
+        pass   # no secrets.toml at all (normal on a cloud host)
+    return os.environ.get(name) or None
 
 def init_connection():
     # Re-use a live client for this browser session. A previous "offline" result
@@ -478,11 +486,11 @@ def _load_one(module):
     """Load a fine-tuned module from ./models, or from Hugging Face if the local copy is missing."""
     from transformers import AutoConfig, AutoTokenizer, AutoModelForSequenceClassification
     local_dir = LOCAL_MODEL_DIRS[module]
-    if os.path.isfile(os.path.join(local_dir, "config.json")):
-        src, kwargs = local_dir, {}
+    if os.path.isfile(os.path.join(local_dir, "model.safetensors")):
+        src = local_dir
     else:
-        logger.warning(f"{local_dir} not found - downloading Module_{module} from {HF_MODEL_REPO}")
-        src, kwargs = HF_MODEL_REPO, {"subfolder": f"Module_{module}"}
+        src = _download_module(module)
+    kwargs = {}
     try:
         tok = AutoTokenizer.from_pretrained(src, use_fast=True, **kwargs)
     except Exception as tok_err:
@@ -491,7 +499,7 @@ def _load_one(module):
     # The saved weights decide how many output labels the model has. If config.json
     # disagrees (e.g. Module_B's 3-label config copied into Module_C, whose head has
     # 2 labels), transformers refuses to load, so the config is corrected on the fly.
-    head = _checkpoint_num_labels(src) if not kwargs else None
+    head = _checkpoint_num_labels(src)
     if head:
         cfg = AutoConfig.from_pretrained(src)
         if cfg.num_labels != head:
@@ -505,6 +513,23 @@ def _load_one(module):
     mdl = AutoModelForSequenceClassification.from_pretrained(src, use_safetensors=True, **kwargs)
     mdl.eval()
     return tok, mdl
+
+def _download_module(module):
+    """Download Module_B / Module_C from the Hugging Face Hub and return its local folder.
+
+    Files are cached in HF_HOME (default ~/.cache/huggingface). On Azure App Service set
+    HF_HOME=/home/hf_cache: /home is persistent, so the ~880 MB download happens once,
+    not on every restart. Only safetensors weights and config/tokenizer files are fetched.
+    """
+    from huggingface_hub import snapshot_download
+    logger.warning(f"{LOCAL_MODEL_DIRS[module]} has no weights - using Module_{module} from {HF_MODEL_REPO} (Hugging Face Hub)")
+    root = snapshot_download(
+        repo_id=HF_MODEL_REPO,
+        revision=os.environ.get("HF_MODEL_REVISION", "main"),
+        allow_patterns=[f"Module_{module}/*.json", f"Module_{module}/*.safetensors", f"Module_{module}/*.txt"],
+    )
+    return os.path.join(root, f"Module_{module}")
+
 
 def _checkpoint_num_labels(model_dir):
     """Number of rows in the saved classifier head (None if it can't be read)."""

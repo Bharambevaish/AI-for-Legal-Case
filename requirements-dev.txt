@@ -1,0 +1,7 @@
+# Everything the app needs, plus tools for tests and local checks.
+#   pip install -r requirements-dev.txt
+-r requirements.txt
+
+pytest>=8.0,<10
+# Optional: free-RAM check in check_setup.py
+psutil>=5.9,<8
