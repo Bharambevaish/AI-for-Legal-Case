@@ -77,6 +77,12 @@ After creating the virtual environment once (step 2 below), double-click [run_de
 
 ---
 
+## Deployment
+
+To put the app online on Azure App Service (Azure for Students credit), see [DEPLOY.md](DEPLOY.md).
+
+---
+
 ## Legal Study Assistant (chatbot)
 
 The **IPC-BNS Lab** page is a study chatbot for law students. It is free and works offline: it retrieves from the project's own knowledge base and composes a cited answer, so it does not invent sections or cases.
@@ -107,6 +113,7 @@ LLM_MODEL = "qwen2.5:1.5b"
 ## Testing
 
 ```bash
+pip install -r requirements-dev.txt   # adds pytest and psutil
 python -m pytest tests -q   # pipeline + chatbot tests; model tests are skipped if ./models is missing
 python check_setup.py       # demo-readiness check: venv, packages, RAM, models, a test prediction, Supabase
 python check_setup.py --shap   # also times one SHAP explanation
