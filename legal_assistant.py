@@ -71,6 +71,25 @@ GREETING_RE = re.compile(
     r"^\s*(hi+|hello+|hey+|hii+|helo|namaste|namaskar|good\s+(morning|afternoon|evening|night)|greetings|yo|hola)\b[\s,!.]*",
     re.I)
 NAME_RE = re.compile(r"\b(?:my\s+name\s+is|my\s+name's|this\s+is|i\s+am\s+called)\s+([A-Za-z][A-Za-z]{1,20})", re.I)
+# "I am Nikhil" / "I'm Priya": a capitalised word after "I am" is taken as a name
+# (but not "I am Accused", "I am a student", ...).
+IAM_NAME_RE = re.compile(r"\b(?:[Ii]\s+am|[Ii]'m|[Ii]m)\s+([A-Z][a-z]{1,20})\b")
+NOT_NAMES = {"Accused", "Facing", "Charged", "Arrested", "Student", "Lawyer", "Advocate", "Judge", "Confused",
+             "Not", "Very", "Really", "Trying", "Looking", "Asking", "Here", "From", "In", "On", "The", "Sorry",
+             "Unable", "Working", "Studying", "Preparing", "Interested", "Curious", "Going", "Getting", "Being"}
+# common typos of the code names ("bnc", "bsn", "bns." ...) -> "bns"
+CODE_TYPO_RE = re.compile(r"\b(bnc|bsn|bnc's|bns's)\b", re.I)
+# questions about the IPC -> BNS mapping itself (not about one section)
+MAPPING_RE = re.compile(r"\b(mapping|mappings|map|convert|conversion|correspondence|corresponding\s+table|"
+                        r"old\s+(sections?\s+)?(to|vs|and)\s+new|chart|table)\b", re.I)
+# "check / verify / is this correct": fact-check IPC -> BNS claims in pasted text
+VERIFY_RE = re.compile(r"\b(check|verify|verified|fact[\s-]?check|is\s+(this|it|that)\s+(correct|right|true)|"
+                       r"correct\s+or\s+not|right\s+or\s+wrong|true\s+or\s+false|validate)\b", re.I)
+_SEC = r"(\d{1,3}[A-Za-z]?(?:\s?\(\d{1,2}\))?)"
+CODE_SEC_RE = re.compile(
+    rf"\b(?P<c1>ipc|i\.p\.c\.?|bns)\s*(?:section|sec\.?|s\.|u/s\.?)?\s*{_SEC.replace('(', '(?P<n1>', 1)}(?![\w(])"
+    rf"|(?:section|sec\.?|s\.|u/s\.?)?\s*{_SEC.replace('(', '(?P<n2>', 1)}\s*(?:of\s+(?:the\s+)?)?(?P<c2>ipc|i\.p\.c\.?|bns)\b",
+    re.I)
 THANKS_RE = re.compile(r"^\s*(thanks?|thank\s+you|thx|ty|great|nice|cool|awesome|got it)\b[\s!.]*$", re.I)
 HELP_RE = re.compile(
     r"\b(what\s+can\s+you\s+do|how\s+(do|can)\s+i\s+use|how\s+to\s+use|what\s+can\s+i\s+ask|help\s+me\s+use|"
@@ -562,13 +581,20 @@ class LegalAssistant:
         if not re.search(r"[A-Za-z0-9]", q):
             return self._unclear(q)
 
+        q = CODE_TYPO_RE.sub("bns", q)
         greeting_prefix, name = "", None
         m = NAME_RE.search(q)
         if m:
             name = m.group(1).capitalize()
+        else:
+            m = IAM_NAME_RE.search(q)
+            if m and m.group(1) not in NOT_NAMES:
+                name = m.group(1)
         g = GREETING_RE.match(q)
         rest = q[g.end():] if g else q
         rest = NAME_RE.sub("", rest)
+        if name:
+            rest = re.sub(rf"\b(?:i\s+am|i'm|im)\s+{re.escape(name)}\b", "", rest, flags=re.I)
         rest = re.sub(r"^[\s,.!&]*(and\s+)?(i\s+)?", "", rest, flags=re.I).strip()
         if g or name:
             greeting_prefix = f"Hi {name}! " if name else "Hi! "
@@ -617,6 +643,11 @@ class LegalAssistant:
             if r:
                 return r
 
+        # 2a. fact-check: "IPC 302 is BNS 101 - is this correct?" or a pasted paragraph with several claims
+        pairs = self._mapping_claims(q)
+        if pairs and (VERIFY_RE.search(q) or len(pairs) >= 2):
+            return self._verify_claims(pairs)
+
         # 2. statute: explicit section numbers
         nums = self._section_numbers(q)
         if nums and (STATUTE_HINT_RE.search(q) or prev.get("code") or len(nq.split()) <= 4
@@ -624,6 +655,13 @@ class LegalAssistant:
             r = self._statute_by_number(q, nums, prev)
             if r:
                 return r
+
+        # 2b. questions about the IPC -> BNS mapping in general ("explain ipc to bns mapping")
+        if MAPPING_RE.search(q) and re.search(r"\b(ipc|bns|penal\s+code|nyaya)\b", q, re.I) \
+                and not CASE_HINT_RE.search(q):
+            conv = [c for c in self.concepts if c.get("id") == "ipc_to_bns_conversion"]
+            if conv:
+                return self._concept_answer(conv, q)
 
         concepts = self._concepts_by_alias(nq)
         definitional = bool(CONCEPT_HINT_RE.search(q)) or len(nq.split()) <= 5
@@ -715,6 +753,62 @@ class LegalAssistant:
             text += f"\n\n**Related concept – {concept['term']}:** {concept['answer']}"
         text += "\n\nSource: official BNS 2023 ↔ IPC 1860 correspondence table."
         return Result("statute", text, sources=["BNS–IPC correspondence table"], context={"code": used_code})
+
+    # ── fact-check IPC -> BNS claims ──
+    def _mapping_claims(self, text):
+        """All 'IPC x -> BNS y' (or 'BNS y -> IPC x') pairs written in the text, in order."""
+        toks = []
+        for m in CODE_SEC_RE.finditer(text):
+            code = (m.group("c1") or m.group("c2")).lower()
+            num = m.group("n1") or m.group("n2")
+            if num.isdigit() and int(num) > 600:
+                continue
+            toks.append(("bns" if code == "bns" else "ipc", _norm_section(num), m.start(), m.end()))
+        pairs, i = [], 0
+        while i + 1 < len(toks):
+            a, b = toks[i], toks[i + 1]
+            if a[0] != b[0] and b[2] - a[3] <= 60:
+                ipc, bns = (a[1], b[1]) if a[0] == "ipc" else (b[1], a[1])
+                if (ipc, bns) not in pairs:
+                    pairs.append((ipc, bns))
+                i += 2
+            else:
+                i += 1
+        return pairs[:12]
+
+    def _verify_claims(self, pairs):
+        rows_out, wrong = [], 0
+        for ipc, bns in pairs:
+            official = self.by_ipc.get(ipc) or self.by_ipc.get(ipc.split("(")[0], [])
+            claim = f"IPC {ipc} → BNS {bns}"
+            if not official:
+                rows_out.append(f"| {claim} | IPC {ipc} is not in the official table | ⚠️ Can't verify |")
+                continue
+            r0 = official[0]
+            if r0.get("status") == "deleted":
+                wrong += 1
+                rows_out.append(f"| {claim} | IPC {ipc} ({r0.get('ipc_title', '').rstrip('.')}) was **deleted**; "
+                                "no BNS equivalent | ❌ Wrong |")
+                continue
+            targets = [_norm_section(r["bns"]) for r in official if r.get("bns")]
+            title = (r0.get("bns_title") or r0.get("ipc_title") or "").rstrip(".")
+            shown = ", ".join(f"BNS {t}" for t in targets)
+            if bns in targets:
+                rows_out.append(f"| {claim} | IPC {ipc} → **{shown}** ({title}) | ✅ Correct |")
+            elif any(t.split("(")[0] == bns.split("(")[0] for t in targets):
+                rows_out.append(f"| {claim} | IPC {ipc} → **{shown}** ({title}) | 🟡 Right section, "
+                                "check the sub-section |")
+            else:
+                wrong += 1
+                rows_out.append(f"| {claim} | IPC {ipc} → **{shown}** ({title}) | ❌ Wrong |")
+        n = len(pairs)
+        head = (f"**Section check** – I compared {n} IPC → BNS claim{'s' if n > 1 else ''} with the official "
+                "correspondence table. " + ("All correct. ✅" if not wrong else f"**{wrong} wrong.**"))
+        text = (head + "\n\n| Claim | Official table | Result |\n|---|---|---|\n" + "\n".join(rows_out) +
+                "\n\n_Tip: paste any text – your notes, a textbook paragraph, or an answer from another AI chatbot – "
+                "and I'll check every IPC → BNS pair in it._\n\nSource: official BNS 2023 ↔ IPC 1860 "
+                "correspondence table.")
+        return Result("verify", text, sources=["BNS–IPC correspondence table"], context={"code": "ipc"})
 
     def _fmt_statute_row(self, r, asked_code):
         status = {"same": "same offence, renumbered", "changed": "**changed** in BNS",
@@ -812,8 +906,11 @@ class LegalAssistant:
                 sources.append(c["source"])
             parts.append(block)
         text = "\n\n---\n\n".join(parts)
-        # add up to two illustrative past cases when the concept appears in the judgments
-        cases = self._search_cases(f"{concepts[0]['term']} {q}", k=2, min_score=0.12)
+        # Add up to two illustrative past cases when the concept genuinely appears in the judgments.
+        # Not for the codes themselves (IPC, BNS, the mapping table, CrPC ...): almost every judgment
+        # mentions "IPC", so such matches would be irrelevant (a 1962 case cannot discuss the BNS).
+        cases = [] if concepts[0].get("category") == "Statutes" else \
+            self._search_cases(f"{concepts[0]['term']} {q}", k=2, min_score=0.15)
         res = Result("concept", text, sources=sources, context={"concept": concepts[0]["id"]})
         if cases:
             res.cases = cases
@@ -928,7 +1025,9 @@ class LegalAssistant:
                       "- **Sections:** *“what is 302 IPC in BNS?”* or *“BNS 103 is which IPC section?”*\n"
                       "- **Concepts:** *“what is anticipatory bail?”*, *“murder vs culpable homicide”*\n"
                       "- **Past cases:** describe the facts, e.g. *“conviction based only on circumstantial evidence”*, "
-                      "and I'll show similar judgments with their verdicts.")
+                      "and I'll show similar judgments with their verdicts.\n"
+                      "- **Fact-check:** paste text with IPC → BNS claims, e.g. *“check: IPC 302 is BNS 101”*, "
+                      "and I'll verify each one against the official table.")
 
     def _help(self):
         n = len(self.cases)
@@ -938,6 +1037,8 @@ class LegalAssistant:
                       "old and new provisions,\n"
                       f"- **{n} past judgments** with their real verdicts.\n\n"
                       "Ask about a section number, a concept, or describe a fact situation to find similar past cases. "
+                      "You can also paste any text with IPC → BNS claims (for example an answer from another chatbot) "
+                      "and I'll check each one against the official table. "
                       "Follow up with *“tell me more about the first case”*.\n\n" + DISCLAIMER)
 
     def _unsafe(self):

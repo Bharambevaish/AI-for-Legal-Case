@@ -221,3 +221,46 @@ def test_multi_concept_question_prefers_case_covering_all_concepts():
     assert hits[0]["name"] == "Bail In Dowry Death v State"
     assert {h["name"] for h in hits[1:]} == {"Dowry Only v State", "Bail Only v State"}
     assert "bail" in hits[0]["passage"].lower() and "dowry" in hits[0]["passage"].lower()
+
+
+# ── IPC -> BNS mapping questions and the fact-check feature ──────────────
+
+def test_mapping_question_with_typo_gets_the_mapping_explanation(bot):
+    r = ask(bot, "Hii, I am Nikhil And i have some doubts related to ipc to bnc mapping so explain me this")
+    assert r["intent"] == "concept"
+    assert r["text"].startswith("Hi Nikhil!")
+    assert "IPC to BNS conversion" in r["text"]
+    # no unrelated "past judgments" under an answer about the codes themselves
+    assert "Past judgments" not in r["text"] and not r.get("cases")
+
+
+def test_i_am_accused_is_not_a_name(bot):
+    r = ask(bot, "I am Accused in a cheating case, what is IPC 420 in BNS?")
+    assert not r["text"].startswith("Hi Accused")
+    assert "318(4)" in r["text"]
+
+
+def test_fact_check_single_claim(bot):
+    r = ask(bot, "check: IPC 302 is BNS 101")
+    assert r["intent"] == "verify"
+    assert "IPC 302 → BNS 101" in r["text"] and "BNS 103" in r["text"] and "❌ Wrong" in r["text"]
+
+
+def test_fact_check_pasted_chatbot_answer(bot):
+    text = ("ChatGPT told me: Section 302 IPC corresponds to Section 101 BNS, IPC 420 is now BNS 318(4), "
+            "IPC 307 became BNS 109 and IPC 124A became BNS 152.")
+    r = ask(bot, text)
+    assert r["intent"] == "verify"
+    assert "4 IPC → BNS claims" in r["text"] and "**2 wrong.**" in r["text"]
+    assert r["text"].count("✅ Correct") == 2
+    assert "deleted" in r["text"]          # 124A (sedition) has no BNS equivalent
+
+
+def test_fact_check_sub_section_hint(bot):
+    r = ask(bot, "is this correct: IPC 420 = BNS 318")
+    assert r["intent"] == "verify" and "check the sub-section" in r["text"]
+
+
+def test_plain_section_question_is_not_a_fact_check(bot):
+    r = ask(bot, "What is 302 IPC in BNS?")
+    assert r["intent"] == "statute" and "BNS 103" in r["text"]

@@ -1951,6 +1951,7 @@ LAB_EXAMPLES = [
     "Past cases where a conviction rested only on circumstantial evidence",
     "Which BNS section deals with organised crime?",
     "Can an FIR for attempt to murder be quashed after a compromise?",
+    "Check: IPC 302 is BNS 101 and IPC 420 is BNS 318(4)",
 ]
 
 
