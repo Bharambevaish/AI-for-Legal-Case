@@ -37,9 +37,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: python-app
+          # Include hidden folders: .streamlit/config.toml holds the theme and security settings.
+          include-hidden-files: true
           path: |
             .
             !antenv/
+            !.git/
+            !.github/
 
       # 🚫 Opting Out of Oryx Build
       # If you prefer to disable the Oryx build process during deployment, follow these steps:
