@@ -179,7 +179,45 @@ border-radius: 8px !important;
 padding: 4px !important;
 box-shadow: 0 1px 4px rgba(0,0,0,0.06) !important;
 }
-div[data-testid="stToolbar"],
+/* Sidebar open / close: a clear, always-visible labelled button */
+[data-testid="stSidebarCollapseButton"] {
+display: flex !important;
+visibility: visible !important;
+opacity: 1 !important;
+}
+[data-testid="stExpandSidebarButton"],
+[data-testid="stSidebarCollapseButton"] button {
+display: inline-flex !important;
+align-items: center !important;
+gap: 6px !important;
+width: auto !important;
+height: 36px !important;
+padding: 0 14px 0 10px !important;
+border-radius: 999px !important;
+background: #0F172A !important;
+color: #FFFFFF !important;
+border: none !important;
+box-shadow: 0 2px 8px rgba(15,23,42,0.18) !important;
+font-size: 13px !important;
+font-weight: 600 !important;
+cursor: pointer !important;
+}
+[data-testid="stExpandSidebarButton"] *,
+[data-testid="stSidebarCollapseButton"] button * {
+color: #FFFFFF !important;
+fill: #FFFFFF !important;
+}
+[data-testid="stExpandSidebarButton"]:hover,
+[data-testid="stSidebarCollapseButton"] button:hover {
+background: #1E293B !important;
+}
+[data-testid="stExpandSidebarButton"]::after { content: "Menu"; }
+[data-testid="stSidebarCollapseButton"] button::after { content: "Hide menu"; }
+/* Hide the toolbar's extra items, but NOT the toolbar itself: in Streamlit 1.5x+ it also
+   holds the button that re-opens a hidden sidebar. */
+[data-testid="stToolbarActions"],
+[data-testid="stMainMenu"],
+[data-testid="stAppDeployButton"],
 .stDeployButton {
 display: none !important;
 }
@@ -1135,7 +1173,7 @@ box-shadow: none !important;
 background: transparent !important;
 color: #475569 !important;
 }
-.stApp:has(#login-root) div.stButton:nth-of-type(1) > button {
+.stApp:has(#login-root) .st-key-login_signin button {
 background: #0F172A !important;
 color: #FFFFFF !important;
 border: none !important;
@@ -1147,13 +1185,13 @@ box-shadow: 0 1px 3px rgba(15,23,42,0.15) !important;
 margin-top: 0.5rem !important;
 transition: all 0.15s ease !important;
 }
-.stApp:has(#login-root) div.stButton:nth-of-type(1) > button:hover {
+.stApp:has(#login-root) .st-key-login_signin button:hover {
 background: #1E293B !important;
 }
-.stApp:has(#login-root) div.stButton:nth-of-type(1) > button:active {
+.stApp:has(#login-root) .st-key-login_signin button:active {
 background: #020617 !important;
 }
-.stApp:has(#login-root) div.stButton:nth-of-type(2) > button {
+.stApp:has(#login-root) .st-key-login_signup button {
 background: #F1F5F9 !important;
 color: #0F172A !important;
 border: 1px solid #E2E8F0 !important;
@@ -1165,7 +1203,7 @@ box-shadow: none !important;
 margin-top: 0.35rem !important;
 transition: all 0.15s ease !important;
 }
-.stApp:has(#login-root) div.stButton:nth-of-type(2) > button:hover {
+.stApp:has(#login-root) .st-key-login_signup button:hover {
 background: #E2E8F0 !important;
 color: #0F172A !important;
 }
@@ -1229,16 +1267,24 @@ letter-spacing: 0.01em !important;
             st.markdown('<label class="chamber-label">DEMO ROLE</label>', unsafe_allow_html=True)
             role = st.radio("Select Role", ["Student", "Lawyer", "Judge", "Admin"], index=1, horizontal=True, label_visibility="collapsed", key="auth_role_selector")
 
-        email = st.text_input("Email Address", placeholder="name@firm.com", max_chars=254).strip().lower()
-        password = st.text_input("Password", type="password", placeholder="Enter your password", max_chars=128)
-
-        st.markdown("<div style='height: 0.25rem;'></div>", unsafe_allow_html=True)
-
+        # A real <form> with autocomplete hints: the browser's saved email/password (autofill)
+        # is read when the form is submitted, and pressing Enter signs in.
         locked = login_lock_remaining() if supabase else 0
+        with st.form("login_form", border=False, enter_to_submit=True):
+            email = st.text_input("Email Address", placeholder="name@firm.com", max_chars=254,
+                                  autocomplete="username").strip().lower()
+            password = st.text_input("Password", type="password", placeholder="Enter your password",
+                                     max_chars=128, autocomplete="current-password")
+            st.markdown("<div style='height: 0.25rem;'></div>", unsafe_allow_html=True)
+            sign_in = st.form_submit_button("Sign In →", use_container_width=True,
+                                            disabled=bool(locked), key="login_signin")
+            create = st.form_submit_button("Create Account", use_container_width=True,
+                                           key="login_signup") if supabase else False
+
         if locked:
             st.error(f"Too many failed sign-in attempts. Please wait {locked} seconds and try again.")
 
-        if st.button("Sign In →", use_container_width=True, disabled=bool(locked)):
+        if sign_in:
             if supabase and (not email or not password):
                 st.warning("Please enter both email and password.")
             elif supabase:
@@ -1287,7 +1333,7 @@ letter-spacing: 0.01em !important;
                     st.session_state.role = role
                     st.rerun()
 
-        if supabase and st.button("Create Account", use_container_width=True):
+        if supabase and create:
             if not email or not password:
                 st.warning("Please enter email and password to register.")
             elif not EMAIL_RE.match(email):
@@ -1972,22 +2018,26 @@ def render_lab():
             st.rerun()
 
     with col_chat:
-        if not history:
-            st.markdown("""
-                <div style="text-align: center; padding: 3rem 0; min-height: 220px;">
-                    <span class="material-symbols-outlined" style="font-size: 48px; color: #CBD5E1; display: block; margin-bottom: 0.75rem;">forum</span>
-                    <h4 style="color: #475569; margin-bottom: 0.25rem;">Start a conversation</h4>
-                    <p style="color: #94A3B8; font-size: 0.85rem; max-width: 320px; margin: 0 auto;">Ask anything about Indian criminal law, or pick an example on the left.</p>
-                </div>
-            """, unsafe_allow_html=True)
+        # Messages scroll inside a fixed-height box (newest at the bottom), so the question
+        # box below it stays in the same place however long the conversation gets.
+        chat_box = st.container(height=560, border=False, autoscroll=True)
+        with chat_box:
+            if not history:
+                st.markdown("""
+                    <div style="text-align: center; padding: 3rem 0; min-height: 220px;">
+                        <span class="material-symbols-outlined" style="font-size: 48px; color: #CBD5E1; display: block; margin-bottom: 0.75rem;">forum</span>
+                        <h4 style="color: #475569; margin-bottom: 0.25rem;">Start a conversation</h4>
+                        <p style="color: #94A3B8; font-size: 0.85rem; max-width: 320px; margin: 0 auto;">Ask anything about Indian criminal law, or pick an example on the left.</p>
+                    </div>
+                """, unsafe_allow_html=True)
 
-        for n, msg in enumerate(history):
-            with st.chat_message(msg["role"], avatar="🧑‍🎓" if msg["role"] == "user" else "⚖️"):
-                # st.markdown escapes HTML by default, so user text cannot inject markup
-                st.markdown(msg["content"])
-                result = msg.get("result") or {}
-                if result.get("cases"):
-                    _render_case_cards(result["cases"], f"m{n}")
+            for n, msg in enumerate(history):
+                with st.chat_message(msg["role"], avatar="🧑‍🎓" if msg["role"] == "user" else "⚖️"):
+                    # st.markdown escapes HTML by default, so user text cannot inject markup
+                    st.markdown(msg["content"])
+                    result = msg.get("result") or {}
+                    if result.get("cases"):
+                        _render_case_cards(result["cases"], f"m{n}")
 
         prompt = st.chat_input("Ask about a section, a concept, or describe a case…", max_chars=MAX_PROMPT_CHARS)
         prompt = prompt or clicked_example or st.session_state.pop("lab_pending", None)
@@ -2206,7 +2256,13 @@ def render_role_requests():
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  MAIN ROUTER
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-if not st.session_state.get('authenticated', False):
+# Draw the UI only under `streamlit run` (or AppTest). When app.py is imported as a module
+# (tests, check_setup.py) there is no script context, and drawing the login form in that
+# "bare mode" leaves a form context open that breaks later Streamlit calls.
+from streamlit.runtime.scriptrunner import get_script_run_ctx as _get_ctx
+if _get_ctx(suppress_warning=True) is None:
+    pass
+elif not st.session_state.get('authenticated', False):
     render_auth()
 else:
     refresh_role()
